@@ -1,28 +1,30 @@
-tia: Toolkit for integration and analysis
-=========================
+# tia: Toolkit for integration and analysis
 
+## Overview
 TIA is a modular toolkit meant to provide bloomberg data access, easier pdf generation, backtesting functionality,
 technical analysis functionality, and return analysis.
 
-Examples
---------
+## Examples
 
 Bloomberg API
-- [v3 api] (http://nbviewer.ipython.org/github/bpsmith/tia/blob/master/examples/v3api.ipynb)
+- [v3 api](http://nbviewer.ipython.org/github/bpsmith/tia/blob/master/examples/v3api.ipynb)
 - [Data Manager] (http://nbviewer.ipython.org/github/bpsmith/tia/blob/master/examples/datamgr.ipynb)
+
 Simple Trade and Portfolio Model
-- [v3 api] (http://nbviewer.ipython.org/github/bpsmith/tia/blob/master/examples/model_usage.ipynb)
+- [v3 api](http://nbviewer.ipython.org/github/bpsmith/tia/blob/master/examples/model_usage.ipynb)
+
 PDF Generation (using reportlab)
-- [pdf generation] (http://nbviewer.ipython.org/github/bpsmith/tia/blob/master/examples/rlab_usage.ipynb)
+- [pdf generation](http://nbviewer.ipython.org/github/bpsmith/tia/blob/master/examples/rlab_usage.ipynb)
+
 Technical Analysis
-- [pure python and ta-lib] (http://nbviewer.ipython.org/github/bpsmith/tia/blob/master/examples/ta.ipynb)
+- [pure python and ta-lib](http://nbviewer.ipython.org/github/bpsmith/tia/blob/master/examples/ta.ipynb)
+
 Backtest
-- [backtest with yahoo data] (http://nbviewer.ipython.org/github/bpsmith/tia/blob/master/examples/backtest.ipynb)
+- [backtest with yahoo data](http://nbviewer.ipython.org/github/bpsmith/tia/blob/master/examples/backtest.ipynb)
 - backtest with bbg data and pdf (Soon)
 
 
-Dependencies
-------------
+## Dependencies
 - Python 2.7
 
 ### Mandatory
@@ -38,12 +40,11 @@ Dependencies
 - [bloomberg](http://www.bloomberglabs.com/api/libraries/)
 
 
-Installation
-------------
+##Installation
 
 To install tia, simply:
 
 .. code-block:: bash
 
-    $ pip install tia
+    $ pip install tia  (NOT WORKING YET)
 

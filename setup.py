@@ -18,8 +18,8 @@ PACKAGE = 'tia'
 PACKAGE_DESC = 'Toolkit for integration and analysis'
 VERSION = tia.__version__
 URL = "https://github.com/bpsmith/tia"
-README = read_file('README.rst')
-HISTORY = read_file('HISTORY.rst').replace('.. :changelog:', '')
+README = read_file('README.md')
+HISTORY = read_file('HISTORY.md').replace('.. :changelog:', '')
 REQUIRED = ['pandas', 'numpy']
 REQUIRED_FOR_TESTS = []
 
