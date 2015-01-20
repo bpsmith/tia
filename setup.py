@@ -32,13 +32,15 @@ setuptools.setup(
     install_requires=REQUIRED,
     long_description=README + '\n\n' + HISTORY,
     name=PACKAGE,
-    packages=['tia'],
+    packages=['tia', 'tia.analysis', 'tia.bbg', 'tia.rlab', 'tia.tests', 'tia.util'],
     package_dir={'tia': 'tia'},
     test_suite='tia.tests',
     tests_require=REQUIRED_FOR_TESTS,
     url=URL,
     version=VERSION,
-
+    keywords=['bloomberg', 'backtesting', 'technical analysis', 'pdf'],
+    download_url='https://github.com/bpsmith/tia',
+    license='BSD (3-clause)',
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Intended Audience :: Developers',

@@ -1,7 +1,7 @@
 # tia: Toolkit for integration and analysis
 
 ## Overview
-TIA is a modular toolkit meant to provide bloomberg data access, easier pdf generation, backtesting functionality,
+TIA is a toolkit that provides bloomberg data access, easier pdf generation, backtesting functionality,
 technical analysis functionality, and return analysis.
 
 ## Examples
@@ -11,7 +11,7 @@ Bloomberg API
 - [Data Manager] (http://nbviewer.ipython.org/github/bpsmith/tia/blob/master/examples/datamgr.ipynb)
 
 Simple Trade and Portfolio Model
-- [v3 api](http://nbviewer.ipython.org/github/bpsmith/tia/blob/master/examples/model_usage.ipynb)
+- [model](http://nbviewer.ipython.org/github/bpsmith/tia/blob/master/examples/model_usage.ipynb)
 
 PDF Generation (using reportlab)
 - [pdf generation](http://nbviewer.ipython.org/github/bpsmith/tia/blob/master/examples/rlab_usage.ipynb)
