@@ -46,5 +46,5 @@ To install tia, simply:
 
 .. code-block:: bash
 
-    $ pip install tia  (NOT WORKING YET)
+    $ pip install tia
 

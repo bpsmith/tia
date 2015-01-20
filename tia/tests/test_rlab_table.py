@@ -39,30 +39,6 @@ class TestTable(unittest.TestCase):
         expected = [(0, 0, 'L_11'), (0, 1, 'L_12')]
         self.assertEquals(actual, expected)
 
-    def test_region_formatter_ix(self):
-        tf = tbl.TableFormatter(self.df1)
-        region = tf.cells
-        region.apply_format(lambda x: 'A')
-        expected = pd.DataFrame([['A', 'A'], ['A', 'A']], index=[1, 2], columns=[1, 2])
-        pdtest.assert_frame_equal(tf.cells.formatted_values, expected)
-        #
-        # Use the actual column index values (They are from the original data frame positions)
-        #
-        region = region.ix[:, 2]
-        region.apply_format(lambda x: 'B')
-        expected = pd.DataFrame([['A', 'B'], ['A', 'B']], index=[1, 2], columns=[1, 2])
-        pdtest.assert_frame_equal(tf.cells.formatted_values, expected)
-        # Get single cell
-        region = region.ix[2]
-        region.apply_format(lambda x: 'D')
-        expected = pd.DataFrame([['A', 'B'], ['A', 'D']], index=[1, 2], columns=[1, 2])
-        pdtest.assert_frame_equal(tf.cells.formatted_values, expected)
-        # Get single cell
-        region = tf.cells.ix[2, 1]
-        region.apply_format(lambda x: 'C')
-        expected = pd.DataFrame([['A', 'B'], ['C', 'D']], index=[1, 2], columns=[1, 2])
-        pdtest.assert_frame_equal(tf.cells.formatted_values, expected)
-
     def test_region_formatter_iloc(self):
         tf = tbl.TableFormatter(self.df1)
         region = tf.cells

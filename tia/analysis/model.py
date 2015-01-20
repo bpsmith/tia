@@ -188,7 +188,7 @@ class Trade(object):
         self.kwargs = kwargs
 
     def split(self, amt):
-        """ return 2 trades, 1 with specific amt and the other with 1 - self.quantity """
+        """ return 2 trades, 1 with specific amt and the other with self.quantity - amt """
         ratio = abs(amt / self.qty)
         t1 = Trade(self.tid, self.ts, amt, self.px, fees=ratio * self.fees, **self.kwargs)
         t2 = Trade(self.tid, self.ts, self.qty - amt, self.px, fees=(1. - ratio) * self.fees,

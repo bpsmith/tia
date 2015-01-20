@@ -22,8 +22,9 @@ class TATest(unittest.TestCase):
 
     def test_close_to_close_signal(self):
         sig = pd.Series([0, 1, 0, -1, 0, 1, -1, 1], index=pd.date_range('12/1/2014', periods=8, freq='B'))
+        pxs = pd.Series(range(1, len(sig)+1), index=sig.index)
         px_getter = lambda ts: ts.day
-        trds = ta.close_to_close_trades(sig, px_getter)
+        trds = ta.Signal(sig).close_to_close(pxs)
         self.assertEqual(9, len(trds))
         self.assertEqual(trds[0].qty, 1)
         self.assertEqual(trds[0].px, sig.index[1].day)

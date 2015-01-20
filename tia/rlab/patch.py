@@ -65,4 +65,4 @@ def _listWrapOn(F, availWidth, canv, mergeSpace=1, obj=None, dims=None):
             doct.frame = doct_frame
 
 # Hack in order to get width constrained
-fl._listWrapOn = _listWrapOn
+#fl._listWrapOn = _listWrapOn

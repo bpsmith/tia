@@ -5,8 +5,7 @@ import pandas.util.testing as pdtest
 from tia.bbg.datamgr import CachedDataManager, MemoryStorage, HDFStorage
 
 
-def as_date(v):
-    return pd.to_datetime(v).date()
+as_date = pd.to_datetime
 
 
 class MockDataManager(object):
@@ -24,7 +23,7 @@ class MockDataManager(object):
             'FLDB': ['a', 'b', 'c', 'd'],
             'FLDC': [99., 98., 97., 96.]
         }
-        index = [d.date() for d in pd.date_range('1/1/2014', '1/4/2014')]
+        index = pd.date_range('1/1/2014', '1/4/2014')
         self.hist = {'SID%s' % i: pd.DataFrame(data, index=index) for i in range(1, 4)}
         self.access_cnt = 0
 
@@ -91,12 +90,12 @@ class TestDataManager(unittest.TestCase):
     def _do_historical_cache_test(self, storage):
         # Cache pieces and then request entire and ensure cache is built properly
         cdm = CachedDataManager(self.dm, storage, pd.datetime.now())
-        start, end = as_date('1/2/2014'), as_date('1/3/2014')
+        start, end = pd.to_datetime('1/2/2014'), pd.to_datetime('1/3/2014')
         res = cdm.get_historical('SID1', 'FLDA', start, end)
         pdtest.assert_frame_equal(res, self.dm.hist['SID1'].ix[start:end, ['FLDA']])
         self.assertEquals(1, self.dm.access_cnt)
 
-        start, end = as_date('1/1/2014'), as_date('1/4/2014')
+        start, end = pd.to_datetime('1/1/2014'), pd.to_datetime('1/4/2014')
         res = cdm.get_historical('SID3', ['FLDA', 'FLDB', 'FLDC'], start, end)
         pdtest.assert_frame_equal(res, self.dm.hist['SID3'])
         self.assertEquals(2, self.dm.access_cnt)

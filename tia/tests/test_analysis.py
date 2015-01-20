@@ -8,7 +8,7 @@ from tia.analysis import *
 class TestAnalysis(unittest.TestCase):
     def setUp(self):
         self.closing_pxs = pd.Series(np.arange(10, 19, dtype=float), pd.date_range('12/5/2014', '12/17/2014', freq='B'))
-        self.dvds = pd.Series([1.25, 1.], index=[pd.Period('12/8/2014'), pd.Period('12/16/2014')])
+        self.dvds = pd.Series([1.25, 1.], index=[pd.to_datetime('12/8/2014'), pd.to_datetime('12/16/2014')])
 
     def test_trade_split(self):
         trd = Trade(1, '12/1/2014', 10., 10., -1.)
@@ -68,20 +68,20 @@ class TestAnalysis(unittest.TestCase):
 
         # few sanity checks on dly (non-txn level)
         for col in ['pl', 'rpl', 'upl', 'dvds', 'fees']:
-            pdtest.assert_series_equal(dly.set_index('dt')[col].resample('B', how='sum'), port.dly_pl[col])
+            pdtest.assert_series_equal(dly.set_index('dt')[col].resample('B', how='sum', kind='period'), port.dly_pl[col])
 
         # Double check the long / short add up to the total
-        l, s = port.perf.long_only.ltd_pl, port.perf.short_only.ltd_pl
-        ls = port.perf.ltd_pl
+        l, s = port.long_only.ltd_pl, port.short_only.ltd_pl
+        ls = port.ltd_pl
         pdtest.assert_frame_equal(ls, l + s)
 
-        l, s = port.perf.long_only.dly_pl, port.perf.short_only.dly_pl
-        ls = port.perf.dly_pl
+        l, s = port.long_only.dly_pl, port.short_only.dly_pl
+        ls = port.dly_pl
         pdtest.assert_frame_equal(ls, l + s)
 
 
-        srets = (port.perf.long_only.dly_roii + port.perf.short_only.dly_roii)
-        pdtest.assert_series_equal(srets, port.perf.dly_roii)
+        srets = (port.long_only.dly_roii + port.short_only.dly_roii)
+        pdtest.assert_series_equal(srets, port.dly_roii)
 
 
 

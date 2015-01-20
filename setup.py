@@ -18,11 +18,13 @@ PACKAGE = 'tia'
 PACKAGE_DESC = 'Toolkit for integration and analysis'
 VERSION = tia.__version__
 URL = "https://github.com/bpsmith/tia"
-README = read_file('README.md')
-HISTORY = read_file('HISTORY.md').replace('.. :changelog:', '')
 REQUIRED = ['pandas', 'numpy']
 REQUIRED_FOR_TESTS = []
 
+LONG_DESC = """\
+TIA is a toolkit that provides bloomberg data access, easier pdf generation, backtesting functionality,
+technical analysis functionality, and return analysis.
+"""
 
 setuptools.setup(
     author=AUTHOR,
@@ -30,7 +32,7 @@ setuptools.setup(
     description=PACKAGE_DESC,
     include_package_data=True,
     install_requires=REQUIRED,
-    long_description=README + '\n\n' + HISTORY,
+    long_description=LONG_DESC,
     name=PACKAGE,
     packages=['tia', 'tia.analysis', 'tia.bbg', 'tia.rlab', 'tia.tests', 'tia.util'],
     package_dir={'tia': 'tia'},
@@ -39,7 +41,7 @@ setuptools.setup(
     url=URL,
     version=VERSION,
     keywords=['bloomberg', 'backtesting', 'technical analysis', 'pdf'],
-    download_url='https://github.com/bpsmith/tia',
+    download_url=URL,
     license='BSD (3-clause)',
     classifiers=[
         'Development Status :: 3 - Alpha',

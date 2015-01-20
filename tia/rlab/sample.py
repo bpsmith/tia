@@ -7,6 +7,7 @@ import pandas as pd
 import numpy as np
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
+from reportlab.platypus import *
 
 from tia.rlab import *
 import tia.util.fmt as fmt
@@ -139,6 +140,9 @@ def sample_dyn_col_row_table():
 
 def sample_multi_page():
     # Expand the colwidths to fill page width, but allow rows to be split across pages
+    #
+    # TODO - make this right
+    #
     pdf_path = os.path.join(tempfile.gettempdir(), 'pdf_test_multi_page.pdf')
     cols = ['C%s' % i for i in range(4)]
     df = pd.DataFrame(np.random.randn(400, len(cols)), columns=cols)
@@ -184,11 +188,13 @@ def sample_heatmap():
     pdf.save()
     print pdf_path
 
-
-if __name__ == '__main__':
+def runall():
     sample1()
     sample_long_table()
     sample_wide_table()
     sample_dyn_col_row_table()
-    sample_multi_page()
+    #sample_multi_page()
     sample_heatmap()
+
+if __name__ == '__main__':
+    runall()
