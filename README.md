@@ -2,7 +2,7 @@
 
 ## Overview
 TIA is a toolkit that provides bloomberg data access, easier pdf generation, backtesting functionality,
-technical analysis functionality, and return analysis.
+technical analysis functionality, return analysis, and few windows utils.
 
 ## Examples
 

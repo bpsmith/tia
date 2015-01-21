@@ -1,7 +1,5 @@
 """
-
-help to interface with ta-lib dealing with NaNs and returning timeseries and such
-
+python implementation of some technical indicators
 """
 import itertools
 
@@ -458,6 +456,37 @@ class Signal(object):
                 if sig != 0:
                     qty = sig > 0 and 1. or -1.
                     trds.append(Trade(tidgen.next(), ts, qty, px))
+            lsig = sig
+        return trds
+
+    def open_to_close(self, open_pxs, close_pxs):
+        signal = self.signal
+        trds = []
+        tidgen = itertools.count(1, 1)
+        diff = signal.dropna().diff()
+        changes = signal[diff.isnull() | (diff != 0)]
+        lsig = 0
+        nopen = len(open_pxs)
+        for ts, sig in changes.iteritems():
+            if sig != lsig:
+                if lsig != 0:
+                    # close open trd with today's closing price
+                    px = close_pxs.get(ts, None)
+                    if px is None:
+                        raise Exception('insufficient close price data: no data found at %s' % ts)
+
+                    closing_trd = Trade(tidgen.next(), ts, -trds[-1].qty, px)
+                    trds.append(closing_trd)
+
+                if sig != 0:
+                    idx = open_pxs.index.get_loc(ts)
+                    if (idx + 1) != nopen:
+                        ts_plus1 = open_pxs.index[idx+1]
+                        px = open_pxs.iloc[idx+1]
+                        qty = sig > 0 and 1. or -1.
+                        trds.append(Trade(tidgen.next(), ts_plus1, qty, px))
+                    else:
+                        pass
             lsig = sig
         return trds
 
