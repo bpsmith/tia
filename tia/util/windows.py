@@ -5,7 +5,7 @@ import os
 
 
 def send_outlook_email(to, subject, body, attachments=None, cc=None, bcc=None, is_html=0):
-    """ Send an email using your local outlokk client """
+    """ Send an email using your local outlook client """
     import win32com.client
     asarr = lambda v: None if not v else isinstance(v, basestring) and [v] or v
     def update_recipients(robj, users, type):
