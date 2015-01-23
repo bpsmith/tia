@@ -44,7 +44,7 @@ def pad_positive_wrapper(fmtfct):
     def check_and_append(*args, **kwargs):
         result = fmtfct(*args, **kwargs)
         if fmtfct.parens and not result.endswith(')'):
-            result += ''
+            result += ' '
         return result
 
     return check_and_append
