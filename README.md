@@ -44,7 +44,5 @@ Backtest
 
 To install tia, simply:
 
-.. code-block:: bash
-
     $ pip install tia
 
