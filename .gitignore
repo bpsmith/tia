@@ -13,6 +13,7 @@ sdist
 develop-eggs
 .installed.cfg
 
+
 # Installer logs
 pip-log.txt
 
@@ -23,10 +24,9 @@ pip-log.txt
 #Translations
 *.mo
 
-# Intellij user files
-.idea/workspace.xml
-.idea/tasks.xml
-*.iml
+# pycharm files
+.idea
+
 
 # ignore ipython checkpoints
 .ipynb_checkpoints
