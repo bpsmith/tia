@@ -23,7 +23,7 @@ DefaultHeaderStyle = {
 DefaultCellStyle = {
     "GRID": (.5, colors.grey), "BOX": (.25, colors.black), "VALIGN": "MIDDLE", "LEADING": 6, "LEFTPADDING": 3,
     "RIGHTPADDING": 3, "BOTTOMPADDING": 2, "TOPPADDING": 2, "ALIGN": "CENTER", "TEXTCOLOR": colors.black,
-    "ROWBACKGROUNDS": [[colors.HexColor("#e3ebf4"), colors.white]], "FONTSIZE": 6, "FONTNAME": "Courier"
+    "ROWBACKGROUNDS": [[colors.HexColor("#e3ebf4"), colors.white]], "FONTSIZE": 6, "FONTNAME": "Helvetica" # "FONTNAME": "Courier"
 }
 
 DefaultIndexStyle = {
@@ -461,9 +461,11 @@ class TableFormatter(object):
         self.cells.apply_styles(styles)
         return self
 
-    def apply_default_header_style(self, **overrides):
+    def apply_default_header_style(self, inc_index=0, **overrides):
         styles = self.get_default_header_style(**overrides)
         self.header.apply_styles(styles)
+        if inc_index:
+            self.index_header.apply_styles(styles)
         return self
 
     def apply_default_index_style(self, **overrides):
@@ -471,10 +473,11 @@ class TableFormatter(object):
         self.index.apply_styles(styles)
         return self
 
-    def apply_default_style(self, inc_cells=1, inc_header=1, inc_index=1, cells_override=None, header_override=None,
+    def apply_default_style(self, inc_cells=1, inc_header=1, inc_index=1, inc_index_header=0, cells_override=None,
+                            header_override=None,
                             index_override=None):
         inc_cells and self.apply_default_cell_style(**(cells_override or {}))
-        inc_header and self.apply_default_header_style(**(header_override or {}))
+        inc_header and self.apply_default_header_style(inc_index=inc_index_header, **(header_override or {}))
         inc_index and self.apply_default_index_style(**(index_override or {}))
         return self
 

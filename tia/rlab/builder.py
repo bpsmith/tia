@@ -12,9 +12,10 @@ __all__ = ['CoverPage', 'GridFrame', 'GridTemplate', 'PdfBuilder']
 
 
 class CoverPage(object):
-    def __init__(self, title='Title', subtitle='Subtitle', font='Helvetica', logo_path=None):
+    def __init__(self, title='Title', subtitle='Subtitle', subtitle2=None, font='Helvetica', logo_path=None):
         self.title = title
         self.subtitle = subtitle
+        self.subtitle2 = subtitle2
         self.font = font
         self.logo_path = logo_path
 
@@ -37,6 +38,8 @@ class CoverPage(object):
         c.rect(0, h / 2 - .5 * imgh - 5, w, 1, fill=1)
         c.setFontSize(isletter and 12 or 16)
         c.drawString(25, h / 2 - .5 * imgh - 50, self.subtitle)
+        if self.subtitle2:
+            c.drawString(25, h / 2 - .5 * imgh - 70, self.subtitle2)
         c.restoreState()
 
 
