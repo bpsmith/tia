@@ -206,6 +206,15 @@ class HDFStorage(Storage):
         self.format = format
         self.get_store_kwargs = {'complevel': complevel, 'complib': complib, 'fletcher32': fletcher32}
 
+    def get_store(self, write=0):
+        if self._store is not None:
+            return self._store
+        else:
+            if write:
+                return pd.HDFStore(self.hdfpath, mode=self.file_exists and 'a' or 'w', **self.get_store_kwargs)
+            else:
+                return pd.HDFStore(self.hdfpath, **self.get_store_kwargs)
+
     @property
     def file_exists(self):
         exists = self._file_exists
@@ -216,7 +225,10 @@ class HDFStorage(Storage):
 
     def get(self, key, default=None):
         if self.file_exists:
-            with pd.get_store(self.hdfpath, **self.get_store_kwargs) as store:
+            store = None
+            managed = self._store is None
+            try:
+                store = self.get_store(write=0)
                 path = self.key_to_string(key)
                 if path in store:
                     df = store[path]
@@ -226,17 +238,32 @@ class HDFStorage(Storage):
                     else:
                         userdata = {}
                     return df, userdata
+            finally:
+                if store is not None and managed:
+                    store.close()
         return None, None
 
     def set(self, key, frame, **userdata):
         if self.readonly:
             raise Exception('storage is read-only')
         else:
-            with pd.get_store(self.hdfpath, mode=self.file_exists and 'a' or 'w', **self.get_store_kwargs) as store:
+            store = None
+            managed = self._store is None
+            try:
+                #
+                # if format is table and all NaN values, then an empty table is stored. Stop this from occuring.
+                #
+                if self.format == 'table' and frame.isnull().all().all():
+                    frame['__FAKE_DATA__'] = 1
+
+                store = self.get_store(write=1)
                 path = self.key_to_string(key)
                 store.put(path, frame, format=self.format)
                 if userdata:
                     store.get_storer(path).attrs.userdata = userdata
+            finally:
+                if store is not None and managed:
+                    store.close()
 
 
 class CachedDataManager(DataManager):
@@ -383,4 +410,3 @@ class CachedDataManager(DataManager):
             if is_fld_str:
                 result.columns = result.columns.droplevel(1)
             return result
-
