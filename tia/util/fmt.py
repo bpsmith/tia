@@ -21,7 +21,7 @@ class DateTimeFormatter(object):
 
 class NumberFormatter(object):
     def __init__(self, precision=2, commas=True, parens=True, suffix=None, kind='f', coerce=True,
-                 transform=None, nan='nan', prefix=None, lpad_zero=1):
+                 transform=None, nan='nan', prefix=None, lpad_zero=1, do_raise=0):
         self.transform = transform
         self.coerce = coerce
         # build format string
@@ -33,6 +33,7 @@ class NumberFormatter(object):
         self.kind = kind
         self.nan = nan
         self.lpad_zero = lpad_zero
+        self.do_raise = do_raise
 
     def __call__(self, value, **kwargs):
         if isinstance(value, pd.Series):
@@ -49,7 +50,11 @@ class NumberFormatter(object):
                     try:
                         value = float(value)
                     except ValueError:
-                        raise
+                        if self.do_raise:
+                            raise
+                        else:
+                            # return the value without doing anything
+                            return value
 
         if np.isnan(value):
             return self.nan
