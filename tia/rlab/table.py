@@ -224,8 +224,8 @@ class RegionFormatter(object):
         """
         for c0, c1 in self.col_coord_tuples:
             for r0, r1 in self.row_coord_tuples:
-                cmd = [cmd, (c0, r0), (c1, r1)] + list(args)
-                self.style_cmds.append(cmd)
+                c = [cmd, (c0, r0), (c1, r1)] + list(args)
+                self.style_cmds.append(c)
         return self
 
     def apply_styles(self, cmdmap):
