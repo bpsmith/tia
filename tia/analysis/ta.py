@@ -1,11 +1,8 @@
-"""
-python implementation of some technical indicators
-"""
 import itertools
+import functools
 
 import pandas as pd
 import numpy as np
-import functools
 
 from tia.analysis.model import Trade
 
@@ -88,12 +85,14 @@ class PerSeries(object):
 def per_series(result_is_frame=0):
     def _ps(fct):
         return PerSeries(fct, result_is_frame=result_is_frame)
+
     return _ps
 
 
 def per_level():
     def _pl(fct):
         return PerLevel(fct)
+
     return _pl
 
 
@@ -143,73 +142,6 @@ def ma(arg, n, matype='sma'):
         return wilderma(arg, n)
     else:
         raise ValueError('unknown moving average type %s' % matype)
-
-
-class Aroon:
-    UP = 'UP'
-    DOWN = 'DOWN'
-    OSCILLATOR = 'OSCILLATOR'
-
-
-class DMI:
-    DIpos = 'DI+'
-    DIneg = 'DI-'
-    DX = 'DX'
-    ADX = 'ADX'
-
-
-def _process_data_structure(arg, kill_inf=True):
-    if isinstance(arg, pd.DataFrame):
-        return_hook = lambda v: type(arg)(v, index=arg.index, columns=arg.columns)
-        values = arg.values
-    elif isinstance(arg, pd.Series):
-        values = arg.values
-        return_hook = lambda v: pd.Series(v, arg.index)
-    else:
-        return_hook = lambda v: v
-        values = arg
-
-    if not issubclass(values.dtype.type, float):
-        values = values.astype(float)
-
-    if kill_inf:
-        values = values.copy()
-        values[np.isinf(values)] = np.NaN
-
-    return return_hook, values
-
-
-def _reapply_nan(orig, new):
-    if isinstance(orig, pd.Series):
-        if isinstance(new, pd.Series):
-            new[orig.isnull()] = np.nan
-            return new
-        elif isinstance(new, pd.DataFrame):
-            nulls = orig.isnull()
-            for c in new.columns:
-                new[c][nulls] = np.nan
-            return new
-        else:
-            raise Exception('unable to handle %s' % new)
-    elif isinstance(orig, pd.DataFrame):
-        if isinstance(new, pd.DataFrame):
-            for c in orig.columns:
-                new[c][orig[c].isnull] = np.nan
-            return new
-        else:
-            raise Exception('cannot handle this case')
-    else:
-        raise Exception('programmer error')
-
-
-def _return_hook(arg):
-    if isinstance(arg, pd.DataFrame):
-        return_hook = lambda v: type(arg)(v, index=arg.index, columns=arg.columns)
-    elif isinstance(arg, pd.Series):
-        return_hook = lambda v: pd.Series(v, arg.index)
-    else:
-        return_hook = lambda v: v
-    return return_hook
 
 
 def _ensure_sorf(arg):
@@ -262,10 +194,10 @@ def dmi(arg, n, high_col='high', low_col='low', close_col='close'):
     adx = wilderma(dx, n)
 
     data = [
-        (DMI.DIpos, di_pos),
-        (DMI.DIneg, di_neg),
-        (DMI.DX, dx),
-        (DMI.ADX, adx),
+        ('DI+', di_pos),
+        ('DI-', di_neg),
+        ('DX', dx),
+        ('ADX', adx),
     ]
     return pd.DataFrame.from_items(data)
 
@@ -299,11 +231,10 @@ def aroon(arg, n, up_col='close', dn_col='close'):
         dn[i] = 100. * (n - dnvals[i - n:i + 1][::-1].argmin()) / n
 
     osc = up - dn
-
     data = [
-        (Aroon.UP, pd.Series(up, index=idx)),
-        (Aroon.DOWN, pd.Series(dn, index=idx)),
-        (Aroon.OSCILLATOR, pd.Series(osc, index=idx)),
+        ('UP', pd.Series(up, index=idx)),
+        ('DOWN', pd.Series(dn, index=idx)),
+        ('OSC', pd.Series(osc, index=idx)),
     ]
     return pd.DataFrame.from_items(data).reindex(arg.index)
 
@@ -363,6 +294,7 @@ def cross_signal(s1, s2, continuous=0):
     s2: Series, DataFrame, float, int, or tuple(float|int)
     continous: bool, if true then once the signal starts it is always 1 or -1
     """
+
     def _convert(src, other):
         if isinstance(src, pd.DataFrame):
             return src.min(axis=1, skipna=0), src.max(axis=1, skipna=0)
@@ -433,16 +365,40 @@ def cross_signal(s1, s2, continuous=0):
 
 
 class Signal(object):
-    def __init__(self, signal):
+    def __init__(self, signal, qtys=None):
         self.signal = signal
+        self.qtys = qtys
 
-    def close_to_close(self, pxs):
+    def _qty_fct(self, index):
+        qtys = self.qtys
+        if qtys is None:
+            qtyfct = lambda ts: 1.
+        elif isinstance(qtys, pd.Series):
+            qtys = qtys.reindex(index, method='ffill').bfill(1)
+            qtyfct = lambda ts: qtys[ts]
+        elif callable(qtys):
+            qtyfct = qtys
+        else:
+            raise ValueError('qtys must be one of (scalar, Series, function)')
+        return qtyfct
+
+    def close_to_close(self, pxs, qtys=None):
+        """
+        :param pxs:
+        :param qtys: scalar, function - lambda ts->trade quantity, Series
+                    should return a positive value which indicates magnitude of the trade
+        :return:
+        """
+        if not isinstance(pxs, pd.Series):
+            raise ValueError('pxs expected to be Series')
+
         signal = self.signal
         trds = []
         tidgen = itertools.count(1, 1)
         diff = signal.dropna().diff()
         changes = signal[diff.isnull() | (diff != 0)]
         lsig = 0
+        qtyfct = self._qty_fct(pxs.index)
         for ts, sig in changes.iteritems():
             if sig != lsig:
                 px = pxs.get(ts, None)
@@ -454,7 +410,8 @@ class Signal(object):
                     trds.append(closing_trd)
 
                 if sig != 0:
-                    qty = sig > 0 and 1. or -1.
+                    size = abs(qtyfct(ts))
+                    qty = sig > 0 and size or -size
                     trds.append(Trade(tidgen.next(), ts, qty, px))
             lsig = sig
         return trds
@@ -467,6 +424,7 @@ class Signal(object):
         changes = signal[diff.isnull() | (diff != 0)]
         lsig = 0
         nopen = len(open_pxs)
+        qtyfct = self._qty_fct(open_pxs.index)
         for ts, sig in changes.iteritems():
             if sig != lsig:
                 if lsig != 0:
@@ -481,63 +439,15 @@ class Signal(object):
                 if sig != 0:
                     idx = open_pxs.index.get_loc(ts)
                     if (idx + 1) != nopen:
-                        ts_plus1 = open_pxs.index[idx+1]
-                        px = open_pxs.iloc[idx+1]
-                        qty = sig > 0 and 1. or -1.
+                        ts_plus1 = open_pxs.index[idx + 1]
+                        px = open_pxs.iloc[idx + 1]
+                        size = abs(qtyfct(ts))
+                        qty = sig > 0 and size or -size
                         trds.append(Trade(tidgen.next(), ts_plus1, qty, px))
                     else:
                         pass
             lsig = sig
         return trds
-
-
-@per_series()
-def sma(arg, n):
-    """ simple moving average """
-    if n == 0:
-        return pd.expanding_mean(arg)
-    else:
-        return pd.rolling_mean(arg, n, min_periods=n)
-
-
-@per_series()
-def ema(arg, n):
-    """ exponential moving average """
-    if n == 0:
-        return pd.ewma(arg, span=len(arg), min_periods=1)
-    else:
-        return pd.ewma(arg, span=n, min_periods=n)
-
-
-@per_series()
-def wilderma(arg, n):
-    """ wilder moving average """
-    converted = arg.dropna()
-    values = converted.values
-    if len(values) < n:
-        return pd.Series(np.nan, index=arg.index)
-    else:
-        result = np.empty(len(values), dtype=float)
-        result[:n - 1] = np.nan
-        result[n - 1] = values[:n].mean()
-        i, sz = n, len(values)
-        pm = 1. / n
-        wm = 1. - pm
-        while i < sz:
-            result[i] = pm * values[i] + wm * result[i - 1]
-            i += 1
-        return pd.Series(result, index=converted.index).reindex(arg.index)
-
-
-def ma(arg, n, matype='sma'):
-    if matype == 'sma':
-        return sma(arg, n)
-    elif matype == 'ema':
-        return ema(arg, n)
-    elif matype == 'wma':
-        return wilderma(arg, n)
-    else:
-        raise ValueError('unknown moving average type %s' % matype)
 
 
 # make upper case available to match ta-lib wrapper

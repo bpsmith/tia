@@ -406,7 +406,11 @@ class _RegionIX(object):
             cidx = slice(None)
 
         region = self.region
-        ridx = [ridx] if np.isscalar(ridx) else ridx
+        # bug when ridx is -1 and only a single row - cannot get DataFrame
+        if np.isscalar(ridx) and ridx == -1 and len(region.formatted_values.index) == 1:
+            ridx = [0]
+        else:
+            ridx = [ridx] if np.isscalar(ridx) else ridx
         cidx = [cidx] if np.isscalar(cidx) else cidx
         idx = getattr(region.formatted_values, self.idx_fct_name)
         result = idx[ridx, cidx]

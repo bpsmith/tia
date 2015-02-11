@@ -123,6 +123,9 @@ class PortfolioPricer(object):
     def dvds(self):
         return self._dvds
 
+    def truncate(self, before=None, after=None):
+        return PortfolioPricer(self.multiplier, self._closing_pxs.truncate(before=before, after=after), dvds=self._dvds)
+
     def get_closing_pxs(self, start=None, end=None):
         pxs = self._closing_pxs
         if start or end:
