@@ -36,7 +36,7 @@ class XmlHelper(object):
             if logger.isEnabledFor(log.logging.DEBUG):
                 logger.debug(msg.Print)
             if msg.asElement().hasElement('responseError'):
-                raise Exception(msg.asElement().getValue('message'))
+                raise Exception(msg.toString())
             yield msg
 
     @staticmethod
