@@ -350,7 +350,7 @@ class ReferenceDataRequest(Request):
 
 
 class HistoricalDataRequest(Request):
-    def __init__(self, symbols, fields, start=None, end=None, period='DAILY', addtl_sets=None, ignore_security_error=0,
+    def __init__(self, symbols, fields, start=None, end=None, period='DAILY', overrides=None, ignore_security_error=0,
                  ignore_field_error=0):
         """Historical data request for bloomberg.
 
@@ -368,6 +368,7 @@ class HistoricalDataRequest(Request):
         assert period in ('DAILY', 'WEEKLY', 'MONTHLY', 'QUARTERLY', 'SEMI-ANNUAL', 'YEARLY')
         self.symbols = isinstance(symbols, basestring) and [symbols] or symbols
         self.fields = isinstance(fields, basestring) and [fields] or fields
+        self.overrides = overrides or {}
         if start is None:
             start = datetime.today() - timedelta(365)
         if end is None:
@@ -399,6 +400,7 @@ class HistoricalDataRequest(Request):
         request.Set('startDate', self.start.strftime('%Y%m%d'))
         request.Set('endDate', self.end.strftime('%Y%m%d'))
         request.Set('periodicitySelection', self.period)
+        Request.apply_overrides(request, self.overrides)
         return request
 
     def on_security_data_node(self, node):
