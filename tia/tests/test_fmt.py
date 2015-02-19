@@ -67,7 +67,7 @@ class TestFormat(unittest.TestCase):
             m = 10 ** n
             s = pd.Series([2.1 * m, -20.1 * m, 200.1 * m])
             actual = fmt.guess_formatter(s, precision=1)(s)
-            expected = pd.Series(['2.1'+t, '(20.1%s)'%t, '200.1'+t])
+            expected = pd.Series(['2.1' + t, '(20.1%s)' % t, '200.1' + t])
             pt.assert_series_equal(expected, actual)
 
         # percents

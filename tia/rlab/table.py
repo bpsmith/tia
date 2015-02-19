@@ -12,7 +12,7 @@ import tia.util.fmt as fmt
 __all__ = ['ConditionalRedBlack', 'DynamicTable', 'TableFormatter', 'RegionFormatter', 'IntFormatter', 'FloatFormatter',
            'PercentFormatter', 'ThousandsFormatter', 'MillionsFormatter', 'BillionsFormatter', 'DollarCentsFormatter',
            'DollarFormatter', 'ThousandDollarsFormatter', 'MillionDollarsFormatter', 'BillionDollarsFormatter',
-           'YmdFormatter', 'Y_m_dFormatter']
+           'YmdFormatter', 'Y_m_dFormatter', 'DynamicNumberFormatter']
 
 DefaultHeaderStyle = {
     "GRID": (.5, colors.grey), "BOX": (.25, colors.black), "VALIGN": "MIDDLE", "LEADING": 6, "LEFTPADDING": 3,
@@ -56,6 +56,9 @@ PercentFormatter = pad_positive_wrapper(fmt.new_percent_formatter(nan='-'))
 ThousandsFormatter = pad_positive_wrapper(fmt.new_thousands_formatter(nan='-'))
 MillionsFormatter = pad_positive_wrapper(fmt.new_millions_formatter(nan='-'))
 BillionsFormatter = pad_positive_wrapper(fmt.new_billions_formatter(nan='-'))
+# Don't attempt to pad
+DynamicNumberFormatter = fmt.DynamicNumberFormat(nan='-', ignore_pcts=1, trunc_dot_zeros=1)
+
 DollarCentsFormatter = pad_positive_wrapper(fmt.new_float_formatter(prefix='$', nan='-'))
 DollarFormatter = pad_positive_wrapper(fmt.new_int_formatter(prefix='$', nan='-'))
 ThousandDollarsFormatter = pad_positive_wrapper(fmt.new_thousands_formatter(prefix='$', nan='-'))
