@@ -359,6 +359,45 @@ class RegionFormatter(object):
         self.apply(format=formatter, styles=styles, cstyles=cstyles)
         return self
 
+    def _do_number_format(self, rb, align, fmt_fct, fmt_args, defaults):
+        args = defaults.update(fmt_args)
+        f = pad_positive_wrapper(fmt_fct(**args))
+        return self.apply_number_format(f, rb=rb, align=align)
+
+    def percent_format(self, rb=1, align=1, **fmt_args):
+        defaults = {'precision': 2, 'nan': '-'}
+        return self._do_number_format(rb, align, fmt.new_percent_formatter, fmt_args, defaults)
+
+    def int_format(self, rb=1, align=1, **fmt_args):
+        defaults = {'nan': '-'}
+        return self._do_number_format(rb, align, fmt.new_int_formatter, fmt_args, defaults)
+
+    def float_format(self, rb=1, align=1, **fmt_args):
+        defaults = {'precision': 2, 'nan': '-'}
+        return self._do_number_format(rb, align, fmt.new_float_formatter, fmt_args, defaults)
+
+    def thousands_format(self, rb=1, align=1, **fmt_args):
+        defaults = {'precision': 1, 'nan': '-'}
+        return self._do_number_format(rb, align, fmt.new_thousands_formatter, fmt_args, defaults)
+
+    def millions_format(self, rb=1, align=1, **fmt_args):
+        defaults = {'precision': 1, 'nan': '-'}
+        return self._do_number_format(rb, align, fmt.new_millions_formatter, fmt_args, defaults)
+
+    def billions_format(self, rb=1, align=1, **fmt_args):
+        defaults = {'precision': 1, 'nan': '-'}
+        return self._do_number_format(rb, align, fmt.new_billions_formatter, fmt_args, defaults)
+
+    def guess_number_format(self, rb=1, align=1, **fmt_args):
+        """Determine the most appropriate formatter by inspected all the region values"""
+        fct = fmt.guess_formatter(self.actual_values, **fmt_args)
+        return self.apply_number_format(fct, rb=rb, align=align)
+
+    def dynamic_number_format(self, rb=1, align=1, **fmt_args):
+        """Formatter changes based on the cell value"""
+        fct = fmt.DynamicNumberFormatter(**fmt_args)
+        return self.apply_number_format(fct, rb=rb, align=align)
+
     # def heat_map(self, cmap=None, min=None, max=None, font_cmap=None):
     def heat_map(self, cmap='RdYlGn', vmin=None, vmax=None, font_cmap=None):
         if cmap is None:
@@ -388,6 +427,57 @@ class RegionFormatter(object):
                     styles['TEXTCOLOR'] = colors.HexColor(rgb2hex(font_cmap(v)))
                 self.iloc[ridx, cidx].apply_styles(styles)
         return self
+
+    def set_fontname(self, name):
+        return self.apply_style('FONTNAME', name)
+
+    def set_fontsize(self, size):
+        return self.apply_style('FONTSIZE', size)
+
+    def set_textcolor(self, color):
+        return self.apply_style('TEXTCOLOR', color)
+
+    def set_valign(self, pos):
+        return self.apply_style('VALIGN', pos)
+
+    def set_valign_middle(self):
+        return self.set_valign('MIDDLE')
+
+    def set_valign_top(self):
+        return self.set_valign('TOP')
+
+    def set_valign_bottom(self):
+        return self.set_valign('BOTTOM')
+
+    def set_align(self, pos):
+        return self.apply_style('ALIGN', pos)
+
+    def set_align_center(self):
+        return self.set_align('CENTER')
+
+    def set_align_left(self):
+        return self.set_align('LEFT')
+
+    def set_align_right(self):
+        return self.set_align('RIGHT')
+
+    def set_pad(self, left, bottom, right, top):
+        return self.set_lpad(left).set_bpad(bottom).set_rpad(right).set_tpad(top)
+
+    def set_lpad(self, n):
+        return self.apply_style('LEFTPADDING', n)
+
+    def set_bpad(self, n):
+        return self.apply_style('BOTTOMPADDING', n)
+
+    def set_rpad(self, n):
+        return self.apply_style('RIGHTPADDING', n)
+
+    def set_tpad(self, n):
+        return self.apply_style('TOPPADDING', n)
+
+    def set_box(self, weight, color=None, count=None, space=None):
+        return self.apply_style('BOX', weight, color, count, space)
 
 
 class _RegionIX(object):

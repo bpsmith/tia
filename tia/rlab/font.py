@@ -3,13 +3,13 @@ from reportlab.pdfbase import pdfmetrics
 
 
 class Font(object):
-    def __init__(self, name, fname):
+    def __init__(self, name, filename):
         self.name = name
-        self.fname = fname
+        self.filename = filename
 
     def try_load(self, default=None):
         try:
-            pdfmetrics.registerFont(TTFont(self.name, self.fname))
+            pdfmetrics.registerFont(TTFont(self.name, self.filename))
             return self.name
         except:
             return default
