@@ -30,6 +30,12 @@ class XmlHelper(object):
             yield result
 
     @staticmethod
+    def node_iter(nodearr):
+        assert nodearr.isArray()
+        for i in range(nodearr.numValues()):
+            yield nodearr.getValue(i)
+
+    @staticmethod
     def message_iter(evt):
         """ provide a message iterator which checks for a response error prior to returning """
         for msg in evt:
@@ -83,7 +89,8 @@ class XmlHelper(object):
             v = ele.getValue()
             return v
         elif dtype == 14:  # Enumeration
-            raise NotImplementedError('ENUMERATION data type needs implemented')
+            # raise NotImplementedError('ENUMERATION data type needs implemented')
+            return str(ele.getValue())
         elif dtype == 16:  # Choice
             raise NotImplementedError('CHOICE data type needs implemented')
         elif dtype == 15:  # SEQUENCE
@@ -218,6 +225,12 @@ class Request(object):
                 o.setElement('fieldId', k)
                 o.setElement('value', v)
 
+    def set_flag(self, request, val, fld):
+        """If the specified val is not None, then set the specified field to its boolean value"""
+        if val is not None:
+            val = bool(val)
+            request.set(fld, val)
+
     def set_response(self, response):
         """Set the response to handle and store the results """
         self.response = response
@@ -258,6 +271,7 @@ class HistoricalDataRequest(Request):
     ignore_security_error: If True, ignore exceptions caused by invalid sids
     ignore_field_error: If True, ignore exceptions caused by invalid fields
     """
+
     def __init__(self, sids, fields, start=None, end=None, period=None, ignore_security_error=0,
                  ignore_field_error=0, **overrides):
 
@@ -399,10 +413,165 @@ class ReferenceDataRequest(Request):
                     self.on_security_node(node)
 
 
+class IntradayTickResponse(object):
+    def __init__(self, request):
+        self.request = request
+        self.ticks = []  # array of dicts
+
+    def as_frame(self):
+        """Return a data frame with no set index"""
+        return pd.DataFrame.from_records(self.ticks)
+
+
+class IntradayTickRequest(Request):
+    def __init__(self, sid, start=None, end=None, events=['TRADE'], include_condition_codes=None,
+                 include_nonplottable_events=None, include_exchange_codes=None, return_eids=None,
+                 include_broker_codes=None, include_rsp_codes=None, include_bic_mic_codes=None,
+                 **overrides):
+        """
+        Parameters
+        ----------
+        events: array containing any of (TRADE, BID, ASK, BID_BEST, ASK_BEST, MID_PRICE, AT_TRADE, BEST_BID, BEST_ASK)
+        """
+        Request.__init__(self, '//blp/refdata')
+        self.sid = sid
+        self.events = isinstance(events, basestring) and [events] or events
+        self.include_condition_codes = include_condition_codes
+        self.include_nonplottable_events = include_nonplottable_events
+        self.include_exchange_codes = include_exchange_codes
+        self.return_eids = return_eids
+        self.include_broker_codes = include_broker_codes
+        self.include_rsp_codes = include_rsp_codes
+        self.include_bic_mic_codes = include_bic_mic_codes
+        self.end = end = pd.to_datetime(end) if end else pd.Timestamp.now()
+        self.start = pd.to_datetime(start) if start else end + pd.datetools.relativedelta(days=-1)
+        self.overrides = overrides
+
+    def __repr__(self):
+        fmtargs = dict(clz=self.__class__.__name__,
+                       sid=','.join(self.sid),
+                       events=','.join(self.events),
+                       overrides=','.join(['%s=%s' % (k, v) for k, v in self.overrides.iteritems()]))
+        return '<{clz}({sid}, [{events}], overrides={overrides})'.format(**fmtargs)
+
+    def new_response(self):
+        self.response = IntradayTickResponse(self)
+
+    def get_bbg_request(self, svc, session):
+        # create the bloomberg request object
+        request = svc.createRequest('IntradayTickRequest')
+        request.set('security', self.sid)
+        [request.append('eventTypes', evt) for evt in self.events]
+        request.set('startDateTime', self.start)
+        request.set('endDateTime', self.end)
+        self.set_flag(request, self.include_condition_codes, 'includeConditionCodes')
+        self.set_flag(request, self.include_nonplottable_events, 'includeNonPlottableEvents')
+        self.set_flag(request, self.include_exchange_codes, 'includeExchangeCodes')
+        self.set_flag(request, self.return_eids, 'returnEids')
+        self.set_flag(request, self.include_broker_codes, 'includeBrokerCodes')
+        self.set_flag(request, self.include_rsp_codes, 'includeRpsCodes')
+        self.set_flag(request, self.include_bic_mic_codes, 'includeBicMicCodes')
+        Request.apply_overrides(request, self.overrides)
+        return request
+
+    def on_tick_data(self, ticks):
+        """Process the incoming tick data array"""
+        for tick in XmlHelper.node_iter(ticks):
+            names = [str(tick.getElement(_).name()) for _ in range(tick.numElements())]
+            tickmap = {n: XmlHelper.get_child_value(tick, n) for n in names}
+            self.response.ticks.append(tickmap)
+
+    def on_event(self, evt, is_final):
+        for msg in XmlHelper.message_iter(evt):
+            tdata = msg.getElement('tickData')
+            # tickData will have 0 to 1 tickData[] elements
+            if tdata.hasElement('tickData'):
+                self.on_tick_data(tdata.getElement('tickData'))
+
+
+class IntradayBarResponse(object):
+    def __init__(self, request):
+        self.request = request
+        self.bars = []  # array of dicts
+
+    def as_frame(self):
+        return pd.DataFrame.from_records(self.bars)
+
+
+class IntradayBarRequest(Request):
+    def __init__(self, sid, start=None, end=None, event='TRADE', interval=None, gap_fill_initial_bar=None,
+                 return_eids=None, adjustment_normal=None, adjustment_abnormal=None, adjustment_split=None,
+                 adjustment_follow_DPDF=None, **overrides):
+        """
+        Parameters
+        ----------
+        events: [TRADE, BID, ASK, BID_BEST, ASK_BEST, BEST_BID, BEST_ASK]
+        interval: int, between 1 and 1440 in minutes. If omitted, defaults to 1 minute
+        gap_fill_initial_bar: bool
+                            If True, bar contains previous values if not ticks during the interval
+        """
+        Request.__init__(self, '//blp/refdata')
+        self.sid = sid
+        self.event = event
+        self.interval = interval
+        self.gap_fill_initial_bar = gap_fill_initial_bar
+        self.return_eids = return_eids
+        self.adjustment_normal = adjustment_normal
+        self.adjustment_abnormal = adjustment_abnormal
+        self.adjustment_split = adjustment_split
+        self.adjustment_follow_DPDF = adjustment_follow_DPDF
+        self.end = end = pd.to_datetime(end) if end else pd.Timestamp.now()
+        self.start = pd.to_datetime(start) if start else end + pd.datetools.relativedelta(hours=-1)
+        self.overrides = overrides
+
+    def __repr__(self):
+        fmtargs = dict(clz=self.__class__.__name__,
+                       sid=self.sid,
+                       event=self.event,
+                       overrides=','.join(['%s=%s' % (k, v) for k, v in self.overrides.iteritems()]))
+        return '<{clz}({sid}, {event}, overrides={overrides})'.format(**fmtargs)
+
+    def new_response(self):
+        self.response = IntradayBarResponse(self)
+
+    def get_bbg_request(self, svc, session):
+        # create the bloomberg request object
+        request = svc.createRequest('IntradayBarRequest')
+        request.set('security', self.sid)
+        request.set('eventType', self.event)
+        request.set('startDateTime', self.start)
+        request.set('endDateTime', self.end)
+        request.set('interval', self.interval)
+        self.set_flag(request, self.gap_fill_initial_bar, 'gapFillInitialBar')
+        self.set_flag(request, self.return_eids, 'returnEids')
+        self.set_flag(request, self.adjustment_normal, 'adjustmentNormal')
+        self.set_flag(request, self.adjustment_abnormal, 'adjustmentAbnormal')
+        self.set_flag(request, self.adjustment_split, 'adjustmentSplit')
+        self.set_flag(request, self.adjustment_follow_DPDF, 'adjustmentFollowDPDF')
+        Request.apply_overrides(request, self.overrides)
+        return request
+
+    def on_bar_data(self, bars):
+        """Process the incoming tick data array"""
+        for tick in XmlHelper.node_iter(bars):
+            names = [str(tick.getElement(_).name()) for _ in range(tick.numElements())]
+            barmap = {n: XmlHelper.get_child_value(tick, n) for n in names}
+            self.response.bars.append(barmap)
+
+    def on_event(self, evt, is_final):
+        """ this is invoked from in response to COM PumpWaitingMessages - different thread """
+        for msg in XmlHelper.message_iter(evt):
+            data = msg.getElement('barData')
+            # tickData will have 0 to 1 tickData[] elements
+            if data.hasElement('barTickData'):
+                self.on_bar_data(data.getElement('barTickData'))
+
+
 class Terminal(object):
     """Submits requests to the Bloomberg Terminal and dispatches the events back to the request
     object for processing.
     """
+
     def __init__(self, host, port):
         self.host = host
         self.port = port
@@ -458,6 +627,30 @@ class Terminal(object):
     def get_reference_data(self, sids, flds, ignore_security_error=0, ignore_field_error=0, **overrides):
         req = ReferenceDataRequest(sids, flds, ignore_security_error=ignore_security_error,
                                    ignore_field_error=ignore_field_error, **overrides)
+        return self.execute(req)
+
+    def get_intraday_tick(self, sids, events=['TRADE'], start=None, end=None, include_condition_codes=None,
+                          include_nonplottable_events=None, include_exchange_codes=None, return_eids=None,
+                          include_broker_codes=None, include_rsp_codes=None, include_bic_mic_codes=None,
+                          **overrides):
+        req = IntradayTickRequest(sids, start=start, end=end, events=events,
+                                  include_condition_codes=include_condition_codes,
+                                  include_nonplottable_events=include_nonplottable_events,
+                                  include_exchange_codes=include_exchange_codes,
+                                  return_eids=return_eids, include_broker_codes=include_broker_codes,
+                                  include_rsp_codes=include_rsp_codes,
+                                  include_bic_mic_codes=include_bic_mic_codes, **overrides)
+        return self.execute(req)
+
+    def get_intraday_bar(self, sid, event='TRADE', start=None, end=None, interval=None, gap_fill_initial_bar=None,
+                         return_eids=None, adjustment_normal=None, adjustment_abnormal=None, adjustment_split=None,
+                         adjustment_follow_DPDF=None, **overrides):
+        req = IntradayBarRequest(sid, start=start, end=end, event=event, interval=interval,
+                                 gap_fill_initial_bar=gap_fill_initial_bar,
+                                 return_eids=return_eids, adjustment_normal=adjustment_normal,
+                                 adjustment_split=adjustment_split,
+                                 adjustment_abnormal=adjustment_abnormal, adjustment_follow_DPDF=adjustment_follow_DPDF,
+                                 **overrides)
         return self.execute(req)
 
 
