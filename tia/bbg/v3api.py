@@ -259,7 +259,7 @@ class HistoricalDataRequest(Request):
     ignore_field_error: If True, ignore exceptions caused by invalid fields
     """
     def __init__(self, sids, fields, start=None, end=None, period=None, ignore_security_error=0,
-                 ignore_field_error=0):
+                 ignore_field_error=0, **overrides):
 
         Request.__init__(self, '//blp/refdata', ignore_security_error=ignore_security_error,
                          ignore_field_error=ignore_field_error)
@@ -272,6 +272,7 @@ class HistoricalDataRequest(Request):
         self.end = end = pd.to_datetime(end) if end else pd.Timestamp.now()
         self.start = pd.to_datetime(start) if start else end + pd.datetools.relativedelta(years=-1)
         self.period = period
+        self.overrides = overrides
 
     def __repr__(self):
         fmtargs = dict(clz=self.__class__.__name__,
@@ -281,6 +282,7 @@ class HistoricalDataRequest(Request):
                        end=self.end.strftime('%Y-%m-%d'),
                        period=self.period,
         )
+        #TODO: add self.overrides if defined
         return '<{clz}([{symbols}], [{fields}], start={start}, end={end}, period={period}'.format(**fmtargs)
 
     def new_response(self):
@@ -294,6 +296,8 @@ class HistoricalDataRequest(Request):
         request.set('startDate', self.start.strftime('%Y%m%d'))
         request.set('endDate', self.end.strftime('%Y%m%d'))
         request.set('periodicitySelection', self.period)
+        if hasattr(self,'overrides') and self.overrides is not None:
+            Request.apply_overrides(request, self.overrides)
         return request
 
     def on_security_data_node(self, node):
@@ -444,9 +448,11 @@ class Terminal(object):
             session.stop()
 
     def get_historical(self, sids, flds, start=None, end=None, period=None, ignore_security_error=0,
-                       ignore_field_error=0):
+                       ignore_field_error=0, **overrides):
         req = HistoricalDataRequest(sids, flds, start=start, end=end, period=period,
-                                    ignore_security_error=ignore_security_error, ignore_field_error=ignore_field_error)
+                                    ignore_security_error=ignore_security_error,
+                                    ignore_field_error=ignore_field_error,
+                                    **overrides)
         return self.execute(req)
 
     def get_reference_data(self, sids, flds, ignore_security_error=0, ignore_field_error=0, **overrides):
