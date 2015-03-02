@@ -270,10 +270,22 @@ class HistoricalDataRequest(Request):
     period: (optional) periodicity of data [DAILY, WEEKLY, MONTHLY, QUARTERLY, SEMI-ANNUAL, YEARLY]
     ignore_security_error: If True, ignore exceptions caused by invalid sids
     ignore_field_error: If True, ignore exceptions caused by invalid fields
+    period_adjustment: (ACTUAL, CALENDAR, FISCAL)
+                        Set the frequency and calendar type of the output
+    currency: ISO Code
+              Amends the value from local to desired currency
+    override_option: (OVERRIDE_OPTION_CLOSE | OVERRIDE_OPTION_GPA)
+    pricing_option: (PRICING_OPTION_PRICE | PRICING_OPTION_YIELD)
+    non_trading_day_fill_option: (NON_TRADING_WEEKDAYS | ALL_CALENDAR_DAYS | ACTIVE_DAYS_ONLY)
+    non_trading_day_fill_method: (PREVIOUS_VALUE | NIL_VALUE)
+    calendar_code_override: 2 letter county iso code
     """
 
     def __init__(self, sids, fields, start=None, end=None, period=None, ignore_security_error=0,
-                 ignore_field_error=0, **overrides):
+                 ignore_field_error=0, period_adjustment=None, currency=None, override_option=None,
+                 pricing_option=None, non_trading_day_fill_option=None, non_trading_day_fill_method=None,
+                 max_data_points=None, adjustment_normal=None, adjustment_abnormal=None, adjustment_split=None,
+                 adjustment_follow_DPDF=None, calendar_code_override=None, **overrides):
 
         Request.__init__(self, '//blp/refdata', ignore_security_error=ignore_security_error,
                          ignore_field_error=ignore_field_error)
@@ -286,6 +298,18 @@ class HistoricalDataRequest(Request):
         self.end = end = pd.to_datetime(end) if end else pd.Timestamp.now()
         self.start = pd.to_datetime(start) if start else end + pd.datetools.relativedelta(years=-1)
         self.period = period
+        self.period_adjustment = period_adjustment
+        self.currency = currency
+        self.override_option = override_option
+        self.pricing_option = pricing_option
+        self.non_trading_day_fill_option = non_trading_day_fill_option
+        self.non_trading_day_fill_method = non_trading_day_fill_method
+        self.max_data_points = max_data_points
+        self.adjustment_normal = adjustment_normal
+        self.adjustment_abnormal = adjustment_abnormal
+        self.adjustment_split = adjustment_split
+        self.adjustment_follow_DPDF = adjustment_follow_DPDF
+        self.calendar_code_override = calendar_code_override
         self.overrides = overrides
 
     def __repr__(self):
@@ -310,7 +334,21 @@ class HistoricalDataRequest(Request):
         request.set('startDate', self.start.strftime('%Y%m%d'))
         request.set('endDate', self.end.strftime('%Y%m%d'))
         request.set('periodicitySelection', self.period)
-        if hasattr(self,'overrides') and self.overrides is not None:
+        self.period_adjustment and request.set('periodicityAdjustment', self.period_adjustment)
+        self.currency and request.set('currency', self.currency)
+        self.override_option and request.set('overrideOption', self.override_option)
+        self.pricing_option and request.set('pricingOption', self.pricing_option)
+        self.non_trading_day_fill_option and request.set('nonTradingDayFillOption', self.non_trading_day_fill_option)
+        self.non_trading_day_fill_method and request.set('nonTradingDayFillMethod', self.non_trading_day_fill_method)
+        self.max_data_points and request.set('maxDataPoints', self.max_data_points)
+        self.calendar_code_override and request.set('calendarCodeOverride', self.calendar_code_override)
+        self.set_flag(request, self.adjustment_normal, 'adjustmentNormal')
+        self.set_flag(request, self.adjustment_abnormal, 'adjustmentAbnormal')
+        self.set_flag(request, self.adjustment_split, 'adjustmentSplit')
+        self.set_flag(request, self.adjustment_follow_DPDF, 'adjustmentFollowDPDF')
+
+
+        if hasattr(self, 'overrides') and self.overrides is not None:
             Request.apply_overrides(request, self.overrides)
         return request
 
@@ -364,7 +402,8 @@ class ReferenceDataResponse(object):
 
 
 class ReferenceDataRequest(Request):
-    def __init__(self, sids, fields, ignore_security_error=0, ignore_field_error=0, **overrides):
+    def __init__(self, sids, fields, ignore_security_error=0, ignore_field_error=0, return_formatted_value=None,
+                 use_utc_time=None, **overrides):
         """
         response_type: (frame, map) how to return the results
         """
@@ -374,6 +413,8 @@ class ReferenceDataRequest(Request):
         self.is_single_field = is_single_field = isinstance(fields, basestring)
         self.sids = isinstance(sids, basestring) and [sids] or sids
         self.fields = isinstance(fields, basestring) and [fields] or fields
+        self.return_formatted_value = return_formatted_value
+        self.use_utc_time = use_utc_time
         self.overrides = overrides
 
     def __repr__(self):
@@ -391,6 +432,8 @@ class ReferenceDataRequest(Request):
         request = svc.createRequest('ReferenceDataRequest')
         [request.append('securities', sec) for sec in self.sids]
         [request.append('fields', fld) for fld in self.fields]
+        self.set_flag(request, self.return_formatted_value, 'returnFormattedValue')
+        self.set_flag(request, self.use_utc_time, 'useUTCTime')
         Request.apply_overrides(request, self.overrides)
         return request
 
