@@ -16,6 +16,7 @@ Simple Trade and Portfolio Model
 PDF Generation (using reportlab)
 - [pdf generation](http://nbviewer.ipython.org/github/bpsmith/tia/blob/master/examples/rlab_usage.ipynb)
 - [dataframe to pdf table](http://nbviewer.ipython.org/github/bpsmith/tia/blob/master/examples/rlab_table_example.ipynb)
+- [quick styling of pdf tables](http://nbviewer.ipython.org/github/bpsmith/tia/blob/master/examples/rlab_table_style.ipynb)
 
 Technical Analysis
 - [pure python and ta-lib](http://nbviewer.ipython.org/github/bpsmith/tia/blob/master/examples/ta.ipynb)

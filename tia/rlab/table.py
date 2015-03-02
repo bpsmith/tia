@@ -1,5 +1,5 @@
 from reportlab.platypus import Table, TableStyle, Flowable
-from reportlab.lib import colors
+from reportlab.lib.colors import grey, white, HexColor, black, gray
 from matplotlib.colors import rgb2hex, LinearSegmentedColormap
 from matplotlib.pyplot import get_cmap
 import numpy as np
@@ -12,29 +12,32 @@ import tia.util.fmt as fmt
 __all__ = ['ConditionalRedBlack', 'DynamicTable', 'TableFormatter', 'RegionFormatter', 'IntFormatter', 'FloatFormatter',
            'PercentFormatter', 'ThousandsFormatter', 'MillionsFormatter', 'BillionsFormatter', 'DollarCentsFormatter',
            'DollarFormatter', 'ThousandDollarsFormatter', 'MillionDollarsFormatter', 'BillionDollarsFormatter',
-           'YmdFormatter', 'Y_m_dFormatter', 'DynamicNumberFormatter']
+           'YmdFormatter', 'Y_m_dFormatter', 'DynamicNumberFormatter', 'BorderTypeGrid', 'BorderTypeHorizontal',
+           'BorderTypeOutline', 'BorderTypeOutline', 'BorderTypeVertical', 'Style']
 
 DefaultHeaderStyle = {
-    "GRID": (.5, colors.grey), "BOX": (.25, colors.black), "VALIGN": "MIDDLE", "LEADING": 6, "LEFTPADDING": 3,
-    "RIGHTPADDING": 3, "BOTTOMPADDING": 3, "TOPPADDING": 3, "FONTSIZE": 6, "BACKGROUND": colors.HexColor("#404040"),
-    "FONTNAME": "Helvetica", "ALIGN": "CENTER", "TEXTCOLOR": colors.white
+    "GRID": (.5, grey), "BOX": (.25, black), "VALIGN": "MIDDLE", "LEADING": 6, "LEFTPADDING": 3,
+    "RIGHTPADDING": 3, "BOTTOMPADDING": 3, "TOPPADDING": 3, "FONTSIZE": 6, "BACKGROUND": HexColor("#404040"),
+    "FONTNAME": "Helvetica", "ALIGN": "CENTER", "TEXTCOLOR": white
 }
 
 DefaultCellStyle = {
-    "GRID": (.5, colors.grey), "BOX": (.25, colors.black), "VALIGN": "MIDDLE", "LEADING": 6, "LEFTPADDING": 3,
-    "RIGHTPADDING": 3, "BOTTOMPADDING": 2, "TOPPADDING": 2, "ALIGN": "CENTER", "TEXTCOLOR": colors.black,
-    "ROWBACKGROUNDS": [[colors.HexColor("#e3ebf4"), colors.white]], "FONTSIZE": 6, "FONTNAME": "Helvetica" # "FONTNAME": "Courier"
+    "GRID": (.5, grey), "BOX": (.25, black), "VALIGN": "MIDDLE", "LEADING": 6, "LEFTPADDING": 3,
+    "RIGHTPADDING": 3, "BOTTOMPADDING": 2, "TOPPADDING": 2, "ALIGN": "CENTER", "TEXTCOLOR": black,
+    "ROWBACKGROUNDS": [[HexColor("#e3ebf4"), white]], "FONTSIZE": 6, "FONTNAME": "Helvetica"  # "FONTNAME": "Courier"
 }
 
 DefaultIndexStyle = {
-    "GRID": (.5, colors.grey), "BOX": (.25, colors.black), "VALIGN": "MIDDLE", "LEADING": 6, "LEFTPADDING": 3,
-    "RIGHTPADDING": 3, "BOTTOMPADDING": 2, "TOPPADDING": 2, "ALIGN": "RIGHT", "TEXTCOLOR": colors.black,
-    "ROWBACKGROUNDS": [[colors.HexColor("#e3ebf4"), colors.white]], "FONTSIZE": 6, "FONTNAME": "Helvetica"
+    "GRID": (.5, grey), "BOX": (.25, black), "VALIGN": "MIDDLE", "LEADING": 6, "LEFTPADDING": 3,
+    "RIGHTPADDING": 3, "BOTTOMPADDING": 2, "TOPPADDING": 2, "ALIGN": "RIGHT", "TEXTCOLOR": black,
+    "ROWBACKGROUNDS": [[HexColor("#e3ebf4"), white]], "FONTSIZE": 6, "FONTNAME": "Helvetica"
 }
+
+DefaultWeight = .7
 
 AlignRight = {'ALIGN': 'RIGHT'}
 
-ConditionalRedBlack = lambda x: x < 0 and dict(TEXTCOLOR=colors.HexColor("#800000"))
+ConditionalRedBlack = lambda x: x < 0 and dict(TEXTCOLOR=HexColor("#800000"))
 
 
 def pad_positive_wrapper(fmtfct):
@@ -129,6 +132,127 @@ def span_iter(series):
     raise StopIteration
 
 
+class BorderType(object):
+    def __init__(self, weight=DefaultWeight, color=black, cap=None, dashes=None, join=None, count=None, space=None):
+        args = locals()
+        args.pop('self')
+        self.kwargs = args
+
+    def apply(self, rng, **overrides):
+        args = self.kwargs.copy()
+        args.update(overrides)
+        self._do_apply(rng, args)
+
+    def _do_apply(self, rng, args):
+        raise NotImplementedError()
+
+
+class BorderTypeGrid(BorderType):
+    def _do_apply(self, rng, args):
+        rng.set_grid(**args)
+
+
+class BorderTypeOutline(BorderType):
+    def _do_apply(self, rng, args):
+        rng.set_box(**args)
+
+
+class BorderTypeHorizontal(BorderType):
+    def _do_apply(self, rng, args):
+        fct = lambda r: (r.set_lineabove(**args), r.set_linebelow(**args))
+        [fct(row) for row in rng.iter_rows()]
+
+
+class BorderTypeOutlineCols(BorderType):
+    def _do_apply(self, rng, args):
+        [col.set_box(**args) for col in rng.iter_cols()]
+
+
+class BorderTypeVertical(BorderType):
+    def _do_apply(self, rng, args):
+        fct = lambda r: (r.set_linebefore(**args), r.set_lineafter(**args))
+        [fct(col) for col in rng.iter_cols()]
+
+
+class Style(object):
+    Blue = {'Light': HexColor('#dce6f1'),
+            'Medium': HexColor('#95b3d7'),
+            'Dark': HexColor('#4f81bd')}
+
+    Black = {'Light': HexColor('#d9d9d9'),
+             'Medium': HexColor('#6c6c6c'),
+             'Dark': black}
+
+    Red = {'Light': HexColor('#f2dcdb'),
+           'Medium': HexColor('#da9694'),
+           'Dark': HexColor('#c0504d')}
+
+    Lime = {'Light': HexColor('#ebf1de'),
+             'Medium': HexColor('#c4d79b'),
+             'Dark': HexColor('#9bbb59')}
+
+    Purple = {'Light': HexColor('#e4dfec'),
+              'Medium': HexColor('#b1a0c7'),
+              'Dark': HexColor('#8064a2')}
+
+    Orange = {'Light': HexColor('#fde9d9'),
+              'Medium': HexColor('#fabf8f'),
+              'Dark': HexColor('#f79646')}
+
+    Cyan = {'Light': HexColor('#eff4f6'),
+            'Medium': HexColor('#a8c2cb'),
+            'Dark': HexColor('#3b595f')}
+
+
+    @staticmethod
+    def apply_basic(formatter, font='Helvetica', font_bold='Helvetica-Bold', font_size=8, rpad=None, lpad=None,
+                    bpad=None, tpad=None, colspans=1, rowspans=0):
+        lpad = 4. / 8. * font_size if lpad is None else 3
+        rpad = 4. / 8. * font_size if rpad is None else 3
+        bpad = 4. / 8. * font_size if bpad is None else 4
+        tpad = 4. / 8. * font_size if tpad is None else 4
+        formatter.all.set_font(font, size=font_size, leading=font_size)
+        formatter.all.set_pad(lpad, bpad, rpad, tpad)
+        formatter.all.set_valign_middle()
+        # do the default things
+        formatter.header.set_font(font_bold)
+        formatter.header.set_align_center()
+        formatter.index_header.set_font(font_bold)
+        formatter.index_header.set_align_left()
+        formatter.index.set_font(font_bold)
+        formatter.index.set_align_left()
+        formatter.cells.set_font(font)
+        formatter.cells.set_align_right()
+        # do col spans and row spans
+        if rowspans and formatter.index.ncols > 1:
+            formatter.index.iloc[:, :formatter.index.ncols - 1].detect_rowspans()
+        if colspans and formatter.header.nrows > 1:
+            formatter.header.iloc[:formatter.header.nrows - 1, :].detect_colspans()
+
+    @staticmethod
+    def apply_color(formatter, cmap=None, font_bw=1, stripe_rows=1, stripe_cols=0,
+                    hdr_border_clazz=BorderTypeGrid, cell_border_clazz=BorderTypeOutline, border_weight=.7):
+        """
+        font_bw: bool, If True use black and white fonts. If False, then use the cmap
+        """
+        cmap = cmap or Style.Blue
+        light = cmap.get('Light', white)
+        medium = cmap.get('Medium', gray)
+        dark = cmap.get('Dark', black)
+        # the ranges
+        header = formatter.all.iloc[:formatter.header.nrows]
+        cells = formatter.all.iloc[formatter.header.nrows:]
+        # color the header
+        hdr_border_clazz and header.set_border_type(hdr_border_clazz, color=medium, weight=border_weight)
+        header.set_textcolor(font_bw and white or light)
+        header.set_background(dark)
+        # color the cells
+        cell_border_clazz and cells.set_border_type(cell_border_clazz, color=medium, weight=border_weight)
+        stripe_rows and cells.set_row_backgrounds([light, white])
+        stripe_cols and cells.set_col_backgrounds([white, light])
+        not font_bw and cells.set_textcolor(dark)
+
+
 class RegionFormatter(object):
     def __init__(self, parent, row_ilocs, col_ilocs):
         self.row_ilocs = row_ilocs
@@ -157,6 +281,17 @@ class RegionFormatter(object):
     @property
     def ncols(self):
         return len(self.col_ilocs)
+
+    @property
+    def last_row(self):
+        return self.empty_frame() if self.nrows == 0 else self.iloc[-1:, :]
+
+    @property
+    def last_col(self):
+        return self.empty_frame() if self.ncols == 0 else self.iloc[:, -1:]
+
+    def is_empty(self):
+        return self.nrows == 0 and self.ncols == 0
 
     @property
     def formatted_values(self):
@@ -215,6 +350,20 @@ class RegionFormatter(object):
         res = res or self.match_row_labels(match_value_or_fct, levels, max_matches, empty_res)
         return res
 
+    def iter_rows(self, start=None, end=None):
+        """Iterate each of the Region rows in this region"""
+        start = start or 0
+        end = end or self.nrows
+        for i in range(start, end):
+            yield self.iloc[i, :]
+
+    def iter_cols(self, start=None, end=None):
+        """Iterate each of the Region cols in this region"""
+        start = start or 0
+        end = end or self.ncols
+        for i in range(start, end):
+            yield self.iloc[:, i]
+
     def __repr__(self):
         return repr(self.formatted_values)
 
@@ -237,8 +386,12 @@ class RegionFormatter(object):
         :param cmdmap: dict of commands mapped to the command arguments
         :return: self
         """
+        is_list_like = lambda arg: isinstance(arg, (list, tuple))
+        is_first_param_list = lambda c: c in ('COLBACKGROUNDS', 'ROWBACKGROUNDS')
         for cmd, args in cmdmap.iteritems():
-            if not isinstance(args, (list, tuple)):
+            if not is_list_like(args):
+                args = [args]
+            elif is_first_param_list(cmd) and is_list_like(args) and not is_list_like(args[0]):
                 args = [args]
             self.apply_style(cmd, *args)
         return self
@@ -360,7 +513,9 @@ class RegionFormatter(object):
         return self
 
     def _do_number_format(self, rb, align, fmt_fct, fmt_args, defaults):
-        args = defaults.update(fmt_args)
+        args = {}
+        defaults and args.update(defaults)
+        fmt_args and args.update(fmt_args)
         f = pad_positive_wrapper(fmt_fct(**args))
         return self.apply_number_format(f, rb=rb, align=align)
 
@@ -422,10 +577,17 @@ class RegionFormatter(object):
                     continue
                 color = cmap(v)
                 hex = rgb2hex(color)
-                styles = {'BACKGROUND': colors.HexColor(hex)}
+                styles = {'BACKGROUND': HexColor(hex)}
                 if font_cmap is not None:
-                    styles['TEXTCOLOR'] = colors.HexColor(rgb2hex(font_cmap(v)))
+                    styles['TEXTCOLOR'] = HexColor(rgb2hex(font_cmap(v)))
                 self.iloc[ridx, cidx].apply_styles(styles)
+        return self
+
+    def set_font(self, name=None, size=None, leading=None, color=None):
+        name and self.set_fontname(name)
+        size and self.set_fontsize(size)
+        leading and self.set_leading(leading)
+        color and self.set_textcolor(color)
         return self
 
     def set_fontname(self, name):
@@ -437,11 +599,17 @@ class RegionFormatter(object):
     def set_textcolor(self, color):
         return self.apply_style('TEXTCOLOR', color)
 
+    def set_leading(self, n):
+        return self.apply_style('LEADING', n)
+
     def set_valign(self, pos):
         return self.apply_style('VALIGN', pos)
 
     def set_valign_middle(self):
         return self.set_valign('MIDDLE')
+
+    def set_valign_center(self):
+        return self.set_valign_middle()
 
     def set_valign_top(self):
         return self.set_valign('TOP')
@@ -454,6 +622,9 @@ class RegionFormatter(object):
 
     def set_align_center(self):
         return self.set_align('CENTER')
+
+    def set_align_middle(self):
+        return self.set_align_center()
 
     def set_align_left(self):
         return self.set_align('LEFT')
@@ -476,8 +647,43 @@ class RegionFormatter(object):
     def set_tpad(self, n):
         return self.apply_style('TOPPADDING', n)
 
-    def set_box(self, weight, color=None, count=None, space=None):
-        return self.apply_style('BOX', weight, color, count, space)
+    def set_box(self, weight=DefaultWeight, color=None, cap=None, dashes=None, join=None, count=None, space=None):
+        return self.apply_style('BOX', weight, color, cap, dashes, join, count, space)
+
+    def set_grid(self, weight=DefaultWeight, color=None, cap=None, dashes=None, join=None, count=None, space=None):
+        return self.apply_style('GRID', weight, color, cap, dashes, join, count, space)
+
+    def set_lineabove(self, weight=DefaultWeight, color=None, cap=None, dashes=None, join=None, count=None, space=None):
+        return self.apply_style('LINEABOVE', weight, color, cap, dashes, join, count, space)
+
+    def set_linebelow(self, weight=DefaultWeight, color=None, cap=None, dashes=None, join=None, count=None, space=None):
+        return self.apply_style('LINEBELOW', weight, color, cap, dashes, join, count, space)
+
+    def set_linebefore(self, weight=DefaultWeight, color=None, cap=None, dashes=None, join=None, count=None,
+                       space=None):
+        return self.apply_style('LINEBEFORE', weight, color, cap, dashes, join, count, space)
+
+    def set_lineafter(self, weight=DefaultWeight, color=None, cap=None, dashes=None, join=None, count=None, space=None):
+        return self.apply_style('LINEAFTER', weight, color, cap, dashes, join, count, space)
+
+    def set_border_type(self, clazz, weight=DefaultWeight, color=None, cap=None, dashes=None, join=None, count=None,
+                        space=None):
+        """example: set_border_type(BorderTypePartialRows) would set a border above and below each row in the range"""
+        args = locals()
+        args.pop('clazz')
+        args.pop('self')
+        clazz(**args).apply(self)
+
+    def set_background(self, color):
+        return self.apply_style('BACKGROUND', color)
+
+    def set_col_backgrounds(self, colors):
+        """Set alternative column colors"""
+        return self.apply_style('COLBACKGROUNDS', colors)
+
+    def set_row_backgrounds(self, colors):
+        """Set alternative row colors"""
+        return self.apply_style('ROWBACKGROUNDS', colors)
 
 
 class _RegionIX(object):
@@ -576,6 +782,17 @@ class TableFormatter(object):
         inc_cells and self.apply_default_cell_style(**(cells_override or {}))
         inc_header and self.apply_default_header_style(inc_index=inc_index_header, **(header_override or {}))
         inc_index and self.apply_default_index_style(**(index_override or {}))
+        return self
+
+    def apply_basic_style(self, font='Helvetica', font_bold='Helvetica-Bold', font_size=8, rpad=None, lpad=None,
+                          bpad=None, tpad=None, colspans=1, rowspans=0, cmap=None, font_bw=1, stripe_rows=1,
+                          stripe_cols=0,
+                          hdr_border_clazz=BorderTypeGrid, cell_border_clazz=BorderTypeOutline, border_weight=.7):
+        Style.apply_basic(self, font=font, font_bold=font_bold, font_size=font_size, rpad=rpad, lpad=lpad, bpad=bpad,
+                          tpad=tpad, colspans=colspans, rowspans=rowspans)
+        Style.apply_color(self, cmap, font_bw=font_bw, stripe_cols=stripe_cols, stripe_rows=stripe_rows,
+                          hdr_border_clazz=hdr_border_clazz, cell_border_clazz=cell_border_clazz,
+                          border_weight=border_weight)
         return self
 
     @property

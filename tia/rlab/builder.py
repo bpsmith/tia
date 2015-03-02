@@ -4,6 +4,7 @@ from reportlab.lib.pagesizes import letter, landscape
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import units
 from reportlab.platypus.flowables import Flowable
+from tia.rlab.table import TableFormatter
 
 import numpy as np
 
@@ -92,7 +93,7 @@ class GridTemplate(object):
         nrows, ncols = self.nrows, self.ncols
         if isinstance(key, tuple):
             ridx = key[0]
-            cidx = len(key) > 1 and key[1] or slice(None)
+            cidx = key[1] if len(key) > 1 else slice(None)
         else:
             ridx = key
             cidx = slice(None)
@@ -149,7 +150,7 @@ class PdfBuilder(object):
         return BaseDocTemplate(path, pagesize=pagesize, showBoundary=showBoundary, allowSplitting=allowSplitting,
                                **dargs)
 
-    def __init__(self, doc_or_path, coverpage=None, pagesize=None, stylesheet=None, showBoundary=1):
+    def __init__(self, doc_or_path, coverpage=None, pagesize=None, stylesheet=None, showBoundary=0):
         self.path = None
         if isinstance(doc_or_path, basestring):
             self.path = doc_or_path
@@ -175,6 +176,7 @@ class PdfBuilder(object):
         return Paragraph(txt, style=self.stylesheet[style])
 
     para = new_paragraph
+    p = new_paragraph
 
     def add_page_template(self, pt):
         if not isinstance(pt, (list, tuple)):
@@ -235,6 +237,18 @@ class PdfBuilder(object):
             if idx < (len(pt.frames) - 1):
                 self.story.append(FrameBreak())
         return self
+
+    def define_simple_grid_template(self, template_id, nrows, ncols):
+        """Define a simple grid template. This will define nrows*ncols frames, which will be indexed starting with '0,0'
+            and using numpy style indexing. So '0,1' is row 0 , col 1"""
+        template = GridTemplate(template_id, nrows, ncols)
+        [template.define_frame('%s,%s' % (i, j), template[i, j]) for i in range(nrows) for j in range(ncols)]
+        template.register(self)
+        return self
+
+    def table_formatter(self, dataframe, inc_header=1, inc_index=1):
+        """Return a table formatter for the dataframe. Saves the user the need to import this class"""
+        return TableFormatter(dataframe, inc_header=inc_header, inc_index=inc_index)
 
     def save(self):
         if isinstance(self.story[-1], PageBreak):
