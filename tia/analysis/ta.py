@@ -4,7 +4,7 @@ import functools
 import pandas as pd
 import numpy as np
 
-from tia.analysis.model import Trade
+from tia.analysis.model import Trade, TradeBlotter
 
 
 __all__ = ['per_level', 'per_series', 'sma', 'ema', 'wilderma', 'ma', 'macd', 'rsi', 'true_range', 'dmi',
@@ -382,59 +382,53 @@ class Signal(object):
             raise ValueError('qtys must be one of (scalar, Series, function)')
         return qtyfct
 
-    def close_to_close(self, pxs, qtys=None):
+    def close_to_close(self, pxs):
         """
         :param pxs:
-        :param qtys: scalar, function - lambda ts->trade quantity, Series
-                    should return a positive value which indicates magnitude of the trade
         :return:
         """
         if not isinstance(pxs, pd.Series):
             raise ValueError('pxs expected to be Series')
 
         signal = self.signal
-        trds = []
-        tidgen = itertools.count(1, 1)
+        blotter = TradeBlotter()
         diff = signal.dropna().diff()
         changes = signal[diff.isnull() | (diff != 0)]
         lsig = 0
         qtyfct = self._qty_fct(pxs.index)
         for ts, sig in changes.iteritems():
+            blotter.ts = ts
             if sig != lsig:
                 px = pxs.get(ts, None)
                 if px is None:
                     raise Exception('insufficient price data: no data found at %s' % ts)
-                if lsig != 0:
-                    # close open trd
-                    closing_trd = Trade(tidgen.next(), ts, -trds[-1].qty, px)
-                    trds.append(closing_trd)
+                if lsig != 0:  # close open trd
+                    blotter.close(px=px)
 
                 if sig != 0:
                     size = abs(qtyfct(ts))
                     qty = sig > 0 and size or -size
-                    trds.append(Trade(tidgen.next(), ts, qty, px))
+                    blotter.open(qty, px)
             lsig = sig
-        return trds
+        return blotter.trades
 
     def open_to_close(self, open_pxs, close_pxs):
         signal = self.signal
-        trds = []
-        tidgen = itertools.count(1, 1)
+        blotter = TradeBlotter()
         diff = signal.dropna().diff()
         changes = signal[diff.isnull() | (diff != 0)]
         lsig = 0
         nopen = len(open_pxs)
         qtyfct = self._qty_fct(open_pxs.index)
         for ts, sig in changes.iteritems():
+            blotter.ts = ts
             if sig != lsig:
                 if lsig != 0:
                     # close open trd with today's closing price
                     px = close_pxs.get(ts, None)
                     if px is None:
                         raise Exception('insufficient close price data: no data found at %s' % ts)
-
-                    closing_trd = Trade(tidgen.next(), ts, -trds[-1].qty, px)
-                    trds.append(closing_trd)
+                    blotter.close(px)
 
                 if sig != 0:
                     idx = open_pxs.index.get_loc(ts)
@@ -443,11 +437,12 @@ class Signal(object):
                         px = open_pxs.iloc[idx + 1]
                         size = abs(qtyfct(ts))
                         qty = sig > 0 and size or -size
-                        trds.append(Trade(tidgen.next(), ts_plus1, qty, px))
+                        blotter.ts = ts_plus1
+                        blotter.open(qty, px)
                     else:
                         pass
             lsig = sig
-        return trds
+        return blotter.trades
 
 
 # make upper case available to match ta-lib wrapper

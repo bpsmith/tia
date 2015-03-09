@@ -83,6 +83,37 @@ class TestAnalysis(unittest.TestCase):
         srets = (port.long_only.dly_roii + port.short_only.dly_roii)
         pdtest.assert_series_equal(srets, port.dly_roii)
 
+    def test_blotter(self):
+        blotter = TradeBlotter()
+        blotter.ts = pd.datetime.now()  # all trades have same timestamp for testing
+        blotter.open(qty=2, px=10)
+        self.assertEqual(2., blotter._live_qty)
+        blotter.close(px=10)
+        self.assertEqual(0, blotter._live_qty)
+        self.assertEqual(2, len(blotter.trades))
+        # should be able to call without issue
+        blotter.try_close(px=10)
+        self.assertEqual(2, len(blotter.trades))
+
+        blotter.open(qty=2, px=10)
+        blotter.increase(qty=2, px=10)
+        self.assertEqual(4, blotter._live_qty)
+        blotter.decrease(qty=-2, px=10)
+        self.assertEqual(2, blotter._live_qty)
+
+    def test_blotter_exceptions(self):
+        blotter = TradeBlotter()
+        blotter.ts = pd.datetime.now()  # all trades have same timestamp for testing
+        self.assertRaises(Exception, lambda: blotter.close(2, 10))
+        blotter.open(2, 10.)
+        self.assertRaises(Exception, lambda: blotter.open(2, 10))
+        self.assertRaises(Exception, lambda: blotter.increase(-2, 10))
+        self.assertRaises(Exception, lambda: blotter.decrease(2, 10))
+
+
+
+
+
 
 
 

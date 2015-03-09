@@ -6,11 +6,13 @@ pnl calculation.
 
 """
 
+import itertools
+
 import pandas as pd
 import numpy as np
 
 
-__all__ = ['SingleAssetPortfolio', 'Trade', 'INTENT_DECREASE', 'INTENT_INCREASE', 'PortfolioPricer',
+__all__ = ['SingleAssetPortfolio', 'Trade', 'INTENT_DECREASE', 'INTENT_INCREASE', 'PortfolioPricer', 'TradeBlotter',
            'INTENT_CLOSE', 'INTENT_OPEN', 'SIDE_SELL', 'SIDE_SELL_SHORT', 'SIDE_COVER', 'SIDE_BUY']
 
 INTENT_OPEN = 1
@@ -105,6 +107,7 @@ class PortfolioPricer(object):
     closing_pxs: Series
     dvds: Series
     """
+
     def __init__(self, multiplier=1., closing_pxs=None, dvds=None):
         if not isinstance(closing_pxs, pd.Series):
             raise ValueError('closing_pxs must be a Series not {0}'.format(type(closing_pxs)))
@@ -182,6 +185,7 @@ class Trade(object):
     kwargs: dict
             user attributes
     """
+
     def __init__(self, tid, ts, qty, px, fees=0., **kwargs):
         self.tid = tid
         self.ts = pd.to_datetime(ts)
@@ -210,6 +214,7 @@ class SingleAssetPortfolio(object):
     pricer : PortfolioPricer
     trades : array of Trade(s), default is None
     """
+
     def __init__(self, pricer, trades=None):
         self.trades = trades or []
         self.pricer = pricer
@@ -346,7 +351,7 @@ class SingleAssetPortfolio(object):
             # check that all days can be priced
             missing = pl.dt[(pl.pid > 0) & pl.close.isnull()]
             if len(missing) > 0:
-                msg = 'insifficient price data: {0} prices missing for dates {1}'
+                msg = 'insufficient price data: {0} prices missing for dates {1}'
                 mdates = ','.join([_.strftime('%Y-%m-%d') for _ in set(missing[:5])])
                 mdates += (len(missing) > 5 and '...' or '')
                 raise Exception(msg.format(len(missing), mdates))
@@ -519,58 +524,9 @@ class SingleAssetPortfolio(object):
                 'pl_max', 'pl', 'duration', 'ntxns', 'roii', 'state']
         return pd.DataFrame.from_records(vals, columns=cols)
 
-    def position_summary(self, win_is_zero=1, percentiles=None, yearly=0, ltd=1):
-        #
-        # TODO: This method is not 100% correct, it assumes if a position starts in a year then it is assigned to
-        # that year. No splitting.
-        #
-        pframe = self.position_frame
-
-        def _summarize(sub, is_total=0):
-            # Rename
-            ret_desc = sub.roii.describe(percentiles=percentiles).rename(lambda col: col == 'count' and 'cnt' or
-                                                                                     col == 'mean' and 'roii_avg' or
-                                                                                     'roii_%s' % col)
-            dur_desc = sub.duration.describe(percentiles=percentiles).drop('count')
-            dur_desc.rename(lambda col: col == 'mean' and 'duration_avg' or 'duration_%s' % col, inplace=True)
-            return ret_desc.append(dur_desc).to_frame().T
-
-        if yearly:
-            years = self.ltd_pl.index.year
-            tenors = [str(_) for _ in range(years.min(), years.max() + 1)]
-            ltd and tenors.append('LTD')
-            yridx = pframe.open_dt.apply(lambda c: c.year)
-        elif ltd:
-            tenors = ['LTD']
-            yridx = None
-        else:
-            raise Exception('yearly and/or ltd need to be set to true')
-
-        def _to_idx(yr, sd, wl):
-            vals = [yr, sd, wl] if yearly else [sd, wl]
-            names = ['tenor', 'side', 'winloss'] if yearly else ['side', 'winloss']
-            return pd.MultiIndex.from_tuples([vals], names=names)
-
-        pieces = []
-        for tenor in tenors:
-            view = pframe if tenor == 'LTD' else pframe.ix[yridx == int(tenor)]
-            s = self.side
-            winmask = view.pl >= 0 if win_is_zero else view.pl > 0
-            wins = _summarize(view.ix[winmask])
-            wins.insert(1, 'winpct', np.nan)
-            wins.index = _to_idx(tenor, s, 'Wins')
-            pieces.append(wins)
-            losses = _summarize(view.ix[~winmask])
-            losses.insert(1, 'winpct', np.nan)
-            losses.index = _to_idx(tenor, s, 'Losses')
-            pieces.append(losses)
-            both = _summarize(view)
-            both.insert(1, 'winpct', np.divide(wins.cnt.iloc[0], wins.cnt.iloc[0] + losses.cnt.iloc[0]))
-            both.index = _to_idx(tenor, s, 'Total')
-            pieces.append(both)
-        return pd.concat(pieces)
-
     def position(self, pid):
+        if pid == 0:
+            raise ValueError('pid must be non-zero')
         dly = self.dly_txn_pl
         tf = dly.ix[dly.pid == pid]
         return PositionView(tf)
@@ -605,9 +561,7 @@ class PositionView(object):
 
     @property
     def roii(self):
-        '''
-        :return: return on intial investment
-        '''
+        '''return on intial investment'''
         return self.pl / abs(self.open_premium)
 
     @property
@@ -627,7 +581,130 @@ class PositionView(object):
         return rets
 
     def __repr__(self):
-        return '<%s(%s, %s, open=%s, close=%s, ret=%s)>' % (self.__class__.__name__, self.pid,
-                                                            self.is_long and 'Long' or 'Short', self.open_dt,
-                                                            self.close_dt, self.ret_on_capital)
+        kwargs = {
+            'class': self.__class__.__name__,
+            'pid': self.pid,
+            'side': self.is_long and 'Long' or 'Short',
+            'open_dt': self.open_dt,
+            'close_dt': self.close_dt
+        }
+        return '<{class}({pid}, {side}, open_dt={open_dt}, close_dt={close_dt})>'.format(**kwargs)
+
+
+class TradeBlotter(object):
+    """TradeBlotter class provides a way to raise exceptions if the Position is not in an expected state. The methods
+    provide the intent so the blotter can verify the expected state."""
+
+    def __init__(self, tidgen=None):
+        self.ts = None
+        self._live_qty = 0
+        self.trades = []
+        if tidgen is None or isinstance(tidgen, int):
+            tidgen = itertools.count(tidgen or 1, 1)
+        self.tidgen = tidgen
+
+    def is_open(self):
+        return self._live_qty != 0
+
+    def next_tid(self):
+        return self.tidgen.next()
+
+    def _order(self, qty, px, fees=0, **kwargs):
+        if not self.ts:
+            raise Exception('no timestamp has been set in the blotter')
+        trd = Trade(self.next_tid(), self.ts, qty, px, fees=fees, **kwargs)
+        self.trades.append(trd)
+        self._live_qty += qty
+
+    def open(self, qty, px, fees=0, **kwargs):
+        if self.is_open():
+            raise Exception('open position failed: position already open')
+        self._order(qty, px, fees, **kwargs)
+
+    def close(self, px, fees=0, **kwargs):
+        if not self.is_open():
+            raise Exception('close position failed: no position currently open')
+        qty = -self.trades[-1].qty
+        self._order(qty, px, fees, **kwargs)
+
+    def try_close(self, px, fees=0, **kwargs):
+        if not self.is_open():
+            return
+        else:
+            return self.close(px, fees=fees, **kwargs)
+
+    def decrease(self, qty, px, fees=0, **kwargs):
+        if not self.is_open():
+            raise Exception('decrease position failed: no position currently open')
+        if np.sign(self._live_qty) != -np.sign(qty):
+            msg = 'decrease position failed: trade quantity {0} is same sign as live quantity {1}'
+            raise Exception(msg.format(qty, self._live_qty))
+        self._order(qty, px, fees, **kwargs)
+
+    def increase(self, qty, px, fees=0, **kwargs):
+        if not self.is_open():
+            raise Exception('increase position failed: no position currently open')
+        if np.sign(self._live_qty) != np.sign(qty):
+            msg = 'increase position failed: trade quantity {0} is different sign as live quantity {1}'
+            raise Exception(msg.format(qty, self._live_qty))
+        self._order(qty, px, fees, **kwargs)
+
+
+class PositionFrame(object):
+    def __init__(self, frame, zero_is_win=1):
+        winmask = frame.pl >= 0 if zero_is_win else frame.pl > 0
+        self.zero_is_win = zero_is_win
+        self.winner_frame = frame.ix[winmask]
+        self.loser_frame = frame.ix[~winmask]
+        self.frame = frame
+
+    win_cnt = property(lambda self: len(self.winner_frame.index))
+    lose_cnt = property(lambda self: len(self.loser_frame.index))
+    cnt = property(lambda self: len(self.frame.index))
+    win_pct = property(lambda self: np.divide(float(self.win_cnt), float(self.cnt)))
+
+    def describe(self, pl=True, duration=True, roii=True, percentiles=None):
+        def _doit(col, alias):
+            cols = ['Winners', 'Losers', 'Total']
+            arrs = [self.winner_frame[col], self.loser_frame[col], self.frame[col]]
+            f = pd.DataFrame(dict(zip(cols, arrs)), columns=cols).describe()
+            f.columns = pd.MultiIndex.from_arrays([[alias]*3, f.columns.values])
+            f.columns.names = ['stat', 'side']
+            return f.T
+        pieces = []
+        pl and pieces.append(_doit('pl', 'pl'))
+        roii and pieces.append(_doit('roii', 'roii'))
+        duration and pieces.append(_doit('duration', 'duration'))
+        return pd.concat(pieces)
+
+    def describe_pl(self, percentiles=None):
+        return self.describe(pl=True, duration=False, roii=False, percentiles=percentiles)
+
+    def describe_duration(self, percentiles=None):
+        return self.describe(pl=False, duration=True, roii=False, percentiles=percentiles)
+
+    def describe_roii(self, percentiles=None):
+        return self.describe(pl=False, duration=False, roii=True, percentiles=percentiles)
+
+    def iter_by_year(self):
+        """Iterate the tuple of (year, PositionFrame) by breaking up the positions in the year a position was open"""
+        years = self.frame.open_dt.apply(lambda x: x.year)
+        for yr in years.unique():
+            yield yr, PositionFrame(self.frame.ix[years == yr], zero_is_win=self.zero_is_win)
+
+    def describe_by_year(self, pl=True, duration=True, roii=True, percentiles=None, inc_ltd=True):
+        years = self.frame.open_dt.apply(lambda x: x.year)
+        # fill in missing years?
+        def get_desc(yr, pf):
+            desc = pf.describe(pl=pl, duration=duration, roii=roii, percentiles=percentiles)
+            desc['year'] = yr
+            desc.set_index('year', append=1, inplace=1)
+            return desc
+
+        pieces = [get_desc(yr, pf) for yr, pf in self.iter_by_year()]
+        inc_ltd and pieces.append(get_desc('ltd', self))
+        return pd.concat(pieces)
+
+
+
 
