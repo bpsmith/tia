@@ -21,45 +21,44 @@ class _CustomDateFormatter(DateFormatter):
 
 
 # Define the formatters for direct access
-class AxesFormat(object):
+
+class _DeferredExecutionMixin(object):
+    """Mixin which defers execution of all methods until 'apply' is invoked or the object is invoked '()'"""
     def __init__(self):
         self._deferred = []
-        self.axes = None
-        self.axis = None  # setup by subclass
-        self.active = None
-
-    @property
-    def isX(self):
-        return self.active == 'x'
-
-    @property
-    def isY(self):
-        return self.active == 'y'
 
     def __getattribute__(self, name):
-        attr = super(AxesFormat, self).__getattribute__(name)
-        if callable(attr) and not name.startswith('_'):
+        attr = super(_DeferredExecutionMixin, self).__getattribute__(name)
+        if callable(attr) and not name.startswith('_') and name != 'apply' and not isinstance(attr, _DeferredExecutionMixin):
             def wrapped(*args, **kwargs):
                 self._deferred.append(lambda: attr(*args, **kwargs))
                 return self
-
             return wrapped
         else:
             return attr
 
-    def __call__(self, axes=None):
-        self.axes = axes or plt.gca()
+    def __call__(self, *args, **kwargs):
         [f() for f in self._deferred]
 
-    def Y(self):
-        self.active = 'y'
-        self.axis = self.axes.yaxis
-        return self
 
+class _AxisFormat(_DeferredExecutionMixin):
+    def __init__(self, parent):
+        super(_AxisFormat, self).__init__()
+        self.parent = parent
+
+    @property
     def X(self):
-        self.active = 'x'
-        self.axis = self.axes.xaxis
-        return self
+        """Provide ability for user to switch from X to Y and vice versa"""
+        return self.parent.X
+
+    @property
+    def Y(self):
+        """Provide ability for user to switch from X to Y and vice versa"""
+        return self.parent.Y
+
+    @property
+    def axes(self):
+        return self.parent.axes
 
     def percent(self, precision=2):
         fct = fmt.new_percent_formatter(precision=precision)
@@ -89,13 +88,50 @@ class AxesFormat(object):
         self.axis.set_major_formatter(FuncFormatter(wrapper))
         return self
 
-    def label(self, txt):
-        self.isX and self.axes.set_xlabel(txt) or self.axes.set_ylabel(txt)
-        return self
+    def apply(self, axes=None):
+        self.parent.apply(axes=axes)
+
+
+class _YAxisFormat(_AxisFormat):
+    @property
+    def axis(self):
+        return self.axes.yaxis
 
     def rotate(self, rot=40, ha='right'):
-        rotate_labels(self.axes, which=self.isX and 'x' or 'y', rot=rot, ha=ha)
+        rotate_labels(self.axes, which='y', rot=rot, ha=ha)
         return self
+
+    def label(self, txt):
+        self.axes.set_ylabel(txt)
+        return self
+
+
+class _XAxisFormat(_AxisFormat):
+    @property
+    def axis(self):
+        return self.axes.xaxis
+
+    def rotate(self, rot=40, ha='right'):
+        rotate_labels(self.axes, which='x', rot=rot, ha=ha)
+        return self
+
+    def label(self, txt):
+        self.axes.set_xlabel(txt)
+        return self
+
+
+class AxesFormat(_DeferredExecutionMixin):
+    def __init__(self):
+        super(AxesFormat, self).__init__()
+        self.X = _XAxisFormat(self)
+        self.Y = _YAxisFormat(self)
+        self.axes = None
+
+    def apply(self, axes=None):
+        self.axes = axes or plt.gca()
+        self.X()
+        self.Y()
+        self()
 
     def tight_layout(self, pad=1.08, h_pad=None, w_pad=None, rect=None):
         plt.tight_layout(pad, h_pad, w_pad, rect)
