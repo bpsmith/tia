@@ -469,8 +469,7 @@ class IntradayTickResponse(object):
 class IntradayTickRequest(Request):
     def __init__(self, sid, start=None, end=None, events=['TRADE'], include_condition_codes=None,
                  include_nonplottable_events=None, include_exchange_codes=None, return_eids=None,
-                 include_broker_codes=None, include_rsp_codes=None, include_bic_mic_codes=None,
-                 **overrides):
+                 include_broker_codes=None, include_rsp_codes=None, include_bic_mic_codes=None):
         """
         Parameters
         ----------
@@ -488,14 +487,12 @@ class IntradayTickRequest(Request):
         self.include_bic_mic_codes = include_bic_mic_codes
         self.end = end = pd.to_datetime(end) if end else pd.Timestamp.now()
         self.start = pd.to_datetime(start) if start else end + pd.datetools.relativedelta(days=-1)
-        self.overrides = overrides
 
     def __repr__(self):
         fmtargs = dict(clz=self.__class__.__name__,
                        sid=','.join(self.sid),
-                       events=','.join(self.events),
-                       overrides=','.join(['%s=%s' % (k, v) for k, v in self.overrides.iteritems()]))
-        return '<{clz}({sid}, [{events}], overrides={overrides})'.format(**fmtargs)
+                       events=','.join(self.events))
+        return '<{clz}({sid}, [{events}])'.format(**fmtargs)
 
     def new_response(self):
         self.response = IntradayTickResponse(self)
@@ -514,7 +511,6 @@ class IntradayTickRequest(Request):
         self.set_flag(request, self.include_broker_codes, 'includeBrokerCodes')
         self.set_flag(request, self.include_rsp_codes, 'includeRpsCodes')
         self.set_flag(request, self.include_bic_mic_codes, 'includeBicMicCodes')
-        Request.apply_overrides(request, self.overrides)
         return request
 
     def on_tick_data(self, ticks):
@@ -544,7 +540,7 @@ class IntradayBarResponse(object):
 class IntradayBarRequest(Request):
     def __init__(self, sid, start=None, end=None, event='TRADE', interval=None, gap_fill_initial_bar=None,
                  return_eids=None, adjustment_normal=None, adjustment_abnormal=None, adjustment_split=None,
-                 adjustment_follow_DPDF=None, **overrides):
+                 adjustment_follow_DPDF=None):
         """
         Parameters
         ----------
@@ -565,14 +561,14 @@ class IntradayBarRequest(Request):
         self.adjustment_follow_DPDF = adjustment_follow_DPDF
         self.end = end = pd.to_datetime(end) if end else pd.Timestamp.now()
         self.start = pd.to_datetime(start) if start else end + pd.datetools.relativedelta(hours=-1)
-        self.overrides = overrides
 
     def __repr__(self):
         fmtargs = dict(clz=self.__class__.__name__,
                        sid=self.sid,
                        event=self.event,
-                       overrides=','.join(['%s=%s' % (k, v) for k, v in self.overrides.iteritems()]))
-        return '<{clz}({sid}, {event}, overrides={overrides})'.format(**fmtargs)
+                       start=self.start,
+                       end=self.end)
+        return '<{clz}({sid}, {event}, start={start}, end={end})'.format(**fmtargs)
 
     def new_response(self):
         self.response = IntradayBarResponse(self)
@@ -584,14 +580,13 @@ class IntradayBarRequest(Request):
         request.set('eventType', self.event)
         request.set('startDateTime', self.start)
         request.set('endDateTime', self.end)
-        request.set('interval', self.interval)
+        request.set('interval', self.interval or 1)
         self.set_flag(request, self.gap_fill_initial_bar, 'gapFillInitialBar')
         self.set_flag(request, self.return_eids, 'returnEids')
         self.set_flag(request, self.adjustment_normal, 'adjustmentNormal')
         self.set_flag(request, self.adjustment_abnormal, 'adjustmentAbnormal')
         self.set_flag(request, self.adjustment_split, 'adjustmentSplit')
         self.set_flag(request, self.adjustment_follow_DPDF, 'adjustmentFollowDPDF')
-        Request.apply_overrides(request, self.overrides)
         return request
 
     def on_bar_data(self, bars):
@@ -687,13 +682,12 @@ class Terminal(object):
 
     def get_intraday_bar(self, sid, event='TRADE', start=None, end=None, interval=None, gap_fill_initial_bar=None,
                          return_eids=None, adjustment_normal=None, adjustment_abnormal=None, adjustment_split=None,
-                         adjustment_follow_DPDF=None, **overrides):
+                         adjustment_follow_DPDF=None):
         req = IntradayBarRequest(sid, start=start, end=end, event=event, interval=interval,
                                  gap_fill_initial_bar=gap_fill_initial_bar,
                                  return_eids=return_eids, adjustment_normal=adjustment_normal,
                                  adjustment_split=adjustment_split,
-                                 adjustment_abnormal=adjustment_abnormal, adjustment_follow_DPDF=adjustment_follow_DPDF,
-                                 **overrides)
+                                 adjustment_abnormal=adjustment_abnormal, adjustment_follow_DPDF=adjustment_follow_DPDF)
         return self.execute(req)
 
 
