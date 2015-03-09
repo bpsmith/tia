@@ -203,6 +203,9 @@ class Style(object):
             'Medium': HexColor('#a8c2cb'),
             'Dark': HexColor('#3b595f')}
 
+    DarkBlue = {'Light': HexColor('#e5eaee '),
+                'Medium': HexColor('#9aabbc'),
+                'Dark': HexColor('#042f59')}
 
     @staticmethod
     def apply_basic(formatter, font='Helvetica', font_bold='Helvetica-Bold', font_size=8, rpad=None, lpad=None,
