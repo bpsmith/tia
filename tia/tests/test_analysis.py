@@ -2,7 +2,7 @@ import unittest
 import pandas as pd
 import pandas.util.testing as pdtest
 import numpy as np
-from tia.analysis import *
+from tia.analysis.model import *
 
 
 class TestAnalysis(unittest.TestCase):
@@ -31,16 +31,16 @@ class TestAnalysis(unittest.TestCase):
 
         # Test txn frame
         port = SingleAssetPortfolio(sec, [t1, t2, t3, t4, t5, t6])
-        txns = port.txn_frame
+        txns = port.txns.frame
         index = range(len(port.trades))
         pdtest.assert_series_equal(txns.txn_qty, pd.Series([5., 2., -3., -4., -4, 4], index=index))
         pdtest.assert_series_equal(txns.open_val, pd.Series([-100., -160., -160. * 4./7., 0, 80, 0], index=index))
         pdtest.assert_series_equal(txns.txn_fees, pd.Series([-1., -1., -1., -1., 0, 0], index=index))
-        pdtest.assert_series_equal(txns.txn_intent, pd.Series([INTENT_OPEN, INTENT_INCREASE, INTENT_DECREASE,
-                                                               INTENT_CLOSE, INTENT_OPEN, INTENT_CLOSE],
+        pdtest.assert_series_equal(txns.txn_intent, pd.Series([Intent.Open, Intent.Increase, Intent.Decrease,
+                                                               Intent.Close, Intent.Open, Intent.Close],
                                                                index=index))
-        pdtest.assert_series_equal(txns.txn_side, pd.Series([SIDE_BUY, SIDE_BUY, SIDE_SELL, SIDE_SELL,
-                                                             SIDE_SELL_SHORT, SIDE_COVER], index=index))
+        pdtest.assert_series_equal(txns.txn_action, pd.Series([Action.Buy, Action.Buy, Action.Sell, Action.Sell,
+                                                             Action.SellShort, Action.Cover], index=index))
         # CHECK PL
         ltd = port.ltd_txn_pl
         dly = port.dly_txn_pl
