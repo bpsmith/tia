@@ -25,6 +25,9 @@ Backtest
 - [backtest with yahoo data](http://nbviewer.ipython.org/github/bpsmith/tia/blob/master/examples/backtest.ipynb)
 - backtest with bbg data and pdf (Soon)
 
+Utils
+- [Formatting](http://nbviewer.ipython.org/github/bpsmith/tia/blob/master/examples/fmt.ipynb)
+
 
 ## Dependencies
 - Python 2.7
