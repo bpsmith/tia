@@ -69,6 +69,7 @@ MillionDollarsFormatter = pad_positive_wrapper(fmt.new_millions_formatter(prefix
 BillionDollarsFormatter = pad_positive_wrapper(fmt.new_billions_formatter(prefix='$', nan='-'))
 YmdFormatter = fmt.new_datetime_formatter('%Y%m%d', True)
 Y_m_dFormatter = fmt.new_datetime_formatter('%Y_%m_%d', True)
+mdYFormatter = fmt.new_datetime_formatter('%m/%d/%Y', True)
 
 
 class DynamicTable(Table):
