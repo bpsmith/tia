@@ -42,8 +42,8 @@ class TestAnalysis(unittest.TestCase):
         pdtest.assert_series_equal(txns.txn_action, pd.Series([Action.Buy, Action.Buy, Action.Sell, Action.Sell,
                                                              Action.SellShort, Action.Cover], index=index))
         # CHECK PL
-        ltd = port.ltd_txn_pl
-        dly = port.dly_txn_pl
+        ltd = port.txns.pl.ltd_txn_frame
+        dly = port.txns.pl.dly_txn_frame
         # Load the dataset
         import tia, os
         xl = os.path.join(tia.__path__[0], 'tests', 'test_analysis.xlsx')
@@ -68,20 +68,17 @@ class TestAnalysis(unittest.TestCase):
 
         # few sanity checks on dly (non-txn level)
         for col in ['pl', 'rpl', 'upl', 'dvds', 'fees']:
-            pdtest.assert_series_equal(dly.set_index('dt')[col].resample('B', how='sum', kind='period'), port.dly_pl[col])
+            pdtest.assert_series_equal(dly.set_index('dt')[col].resample('B', how='sum', kind='period'), port.dly_pl_frame[col])
 
         # Double check the long / short add up to the total
-        l, s = port.long_only.ltd_pl, port.short_only.ltd_pl
-        ls = port.ltd_pl
+        l, s = port.long.ltd_pl_frame, port.short.ltd_pl_frame
+        ls = port.ltd_pl_frame
         pdtest.assert_frame_equal(ls, l + s)
 
-        l, s = port.long_only.dly_pl, port.short_only.dly_pl
-        ls = port.dly_pl
+        l, s = port.long.dly_pl_frame, port.short.dly_pl_frame
+        ls = port.dly_pl_frame
         pdtest.assert_frame_equal(ls, l + s)
 
-
-        srets = (port.long_only.dly_roii + port.short_only.dly_roii)
-        pdtest.assert_series_equal(srets, port.dly_roii)
 
     def test_blotter(self):
         blotter = TradeBlotter()

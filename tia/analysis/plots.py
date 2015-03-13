@@ -6,7 +6,6 @@ from tia.analysis.perf import returns_cumulative, max_drawdown
 from tia.util.mplot import AxesFormat
 from tia.util.fmt import new_float_formatter
 
-plt.style
 def plot_return_on_dollar(rets, title='Return on $1', show_maxdd=0, figsize=None, ax=None, append=0):
     """ Show the cumulative return of specified rets and max drawdowns if selected."""
     crets = (1. + returns_cumulative(rets, expanding=1))
@@ -62,7 +61,12 @@ def plot_return_on_dollar(rets, title='Return on $1', show_maxdd=0, figsize=None
 
             bbox_props = dict(boxstyle="round", fc="w", ec="0.5", alpha=0.7)
             # sub = lambda c: c and len(c) > 2 and c[:2] or c
-            ax.text(dt, amt, "mdd {0}".format(dt).strip(), ha="center",
+            try:
+                dtstr = '{0}'.format(dt.to_period())
+            except:
+                dtstr = '{0}'.format(dt)
+
+            ax.text(dt, amt, "mdd {0}".format(dtstr).strip(), ha="center",
                     va="center", size=10, bbox=bbox_props)
     plt.tight_layout()
 

@@ -94,7 +94,7 @@ class PlColumns(object):
         PL: 'p/l (UPL + RPL)'
     }
 
-    PL_COLUMNS = [DT, POS, CLOSE_PX, OPEN_VAL, MKT_VAL, TOT_VAL, DVDS, FEES, RPL_GROSS, RPL, UPL, PL]
+    PL_COLUMNS = [DT, POS, OPEN_VAL, MKT_VAL, TOT_VAL, DVDS, FEES, RPL_GROSS, RPL, UPL, PL]
     TXN_PL_COLUMNS = [DT, PID, TID, TXN_QTY, TXN_PX, TXN_FEES, TXN_PREMIUM, TXN_INTENT, TXN_ACTION, POS, CLOSE_PX,
                       OPEN_VAL, MKT_VAL, TOT_VAL, DVDS, FEES, RPL_GROSS, RPL, UPL, PL]
 
@@ -113,5 +113,5 @@ class PositionColumns(object):
     PL = 'pl'
     DURATION = 'duration'
     NUM_TXNS = 'ntxns'
-    ROII = 'roii'
+    RET = 'ret'
     STATE = 'state'

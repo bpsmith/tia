@@ -2,7 +2,6 @@ import pandas as pd
 import numpy as np
 
 from tia.analysis.model.txn import Intent, Action
-
 from tia.analysis.model.interface import PlColumns as PL, PositionColumns as PC
 from tia.util.decorator import lazy_property
 
@@ -21,17 +20,18 @@ class State(object):
 
 
 class Position(object):
-    def __init__(self, pid, dly_txn_pl, trades):
+    def __init__(self, pid, dly_txn_pl_frame, trades, dly_txn_ret):
         """
         :param pid: position id
         :param dly_txn_pl: daily transaction level DataFrame
         :param trades: trade array
         """
         self.pid = pid
-        self.dly_txn_pl = dly_txn_pl
+        self.dly_txn_pl_frame = dly_txn_pl_frame
+        self.dly_txn_ret = dly_txn_ret
         self.trades = trades
-        self.first = first = dly_txn_pl.iloc[0]
-        self.last = last = dly_txn_pl.iloc[-1]
+        self.first = first = dly_txn_pl_frame.iloc[0]
+        self.last = last = dly_txn_pl_frame.iloc[-1]
         self.is_closed = is_closed = last[PL.TXN_INTENT] == Intent.Close
         self.is_long = is_long = first[PL.TXN_ACTION] == Action.Buy
         self.is_short = not is_long
@@ -42,39 +42,29 @@ class Position(object):
         self.open_px = first[PL.TXN_PX]
         self.close_px = last[PL.TXN_PX]
         self.close_dt = last[PL.DT]
-        cumpl = dly_txn_pl[PL.PL].cumsum()
+        cumpl = dly_txn_pl_frame[PL.PL].cumsum()
         self.pl = cumpl.iloc[-1]
         self.pl_min = cumpl.min()
         self.pl_max = cumpl.max()
-        self.duration = len(dly_txn_pl[PL.DT].drop_duplicates())
+        self.ret = (1. + dly_txn_ret).prod() - 1.
+        self.duration = len(dly_txn_pl_frame[PL.DT].drop_duplicates())
         self.ntxns = len(trades)
 
     state = property(lambda self: self.is_closed and State.Closed or State.Open)
     side = property(lambda self: self.is_long and Side.Long or Side.Short)
 
     @property
-    def roii(self):
-        '''return on intial investment'''
-        return self.pl / abs(self.open_premium)
+    def dly_ret(self):
+        ltd = (1. + self.dly_txn_ret).cumprod() - 1.
+        ltd.index = self.dly_txn_pl_frame[PL.DT]
+        dly = ltd.groupby(lambda x: x).apply(lambda x: x[-1])
+        dly.iloc[1:] = dly.pct_change()[1:]
+        return dly
 
     @property
     def dly_pl(self):
-        return self.dly_txn_pl[[PL.DT, PL.PL]].set_index(PL.DT).resample('B', how='sum', kind='period')[PL.PL].dropna()
-
-    @property
-    def dly_pl_path(self):
-        return self.dly_pl.cumsum()
-
-    @property
-    def dly_roii(self):
-        '''Daily return on initial investment
-        :return: the dly return series
-        '''
-        # TODO - handle increase/decrease logic
-        cost = abs(self.open_premium)
-        rets = (cost + self.dly_pl_path).pct_change()
-        rets.iloc[0] = 0
-        return rets
+        return self.dly_txn_pl_frame[[PL.DT, PL.PL]].set_index(PL.DT).resample('B', how='sum', kind='period')[
+            PL.PL].dropna()
 
     def __repr__(self):
         kwargs = {
@@ -97,8 +87,8 @@ class Positions(object):
 
     pids = property(lambda self: self.txns.pids)
     sides = property(lambda self: self.summary[PC.SIDE])
-    long_pids = property(lambda self: self.pids[self.sides == Side.Long])
-    short_pids = property(lambda self: self.pids[self.sides == Side.Short])
+    long_pids = property(lambda self: self.summary[self.summary[PC.SIDE] == Side.Long].index)
+    short_pids = property(lambda self: self.summary[self.summary[PC.SIDE] == Side.Short].index)
 
     def __len__(self):
         return len(self.pids)
@@ -106,23 +96,22 @@ class Positions(object):
     def __getitem__(self, pid):
         if pid == 0:
             raise ValueError('pid must be non-zero')
-        trds = self.txns.pid_to_trades[pid]
-        dly = self.txns.dly_txn_pl
+        trds = self.txns.get_pid_txns(pid)
+        dly = self.txns.pl.dly_txn_frame
         sub = dly.ix[dly[PL.PID] == pid]
-        return Position(pid, sub, trds)
+        rets = self.txns.rets.dly_txn[sub.index]
+        return Position(pid, sub, trds, rets)
 
     def __iter__(self):
         for pid in self.pids:
-            yield [self[pid]]
+            yield self[pid]
 
-    def subset(self, txns):
+    def subset(self, subtxns):
         """Construct a new Positions object from the new Txns object (which is assumed to be a subset)
         of current Txns object"""
-        result = Positions(txns)
+        result = Positions(subtxns)
         if hasattr(self, '_summary'):
-            summary = self._summary
-            allpids = summary[PC.PID]
-            result._summary = self._summary.ix[allpids.isin(txns.pids)]
+            result._summary = self._summary.ix[subtxns.pids]
         return result
 
     @lazy_property
@@ -141,13 +130,16 @@ class Positions(object):
                 pos.pl_min,
                 pos.pl_max,
                 pos.pl,
+                pos.ret,
                 pos.duration,
                 pos.ntxns,
                 pos.state
             ])
         cols = [PC.PID, PC.SIDE, PC.OPEN_DT, PC.CLOSE_DT, PC.OPEN_QTY, PC.OPEN_PX, PC.CLOSE_PX, PC.OPEN_PREMIUM, \
-                PC.PL_MIN, PC.PL_MAX, PC.PL, PC.DURATION, PC.NUM_TXNS, PC.STATE]
-        return pd.DataFrame.from_records(vals, columns=cols)
+                PC.PL_MIN, PC.PL_MAX, PC.PL, PC.RET, PC.DURATION, PC.NUM_TXNS, PC.STATE]
+        f = pd.DataFrame.from_records(vals, columns=cols)
+        f[PC.PID] = f[PC.PID].astype(int)
+        return f.set_index(PC.PID)
 
 
 class PositionsAnalyzer(object):
@@ -193,7 +185,7 @@ class PositionsAnalyzer(object):
         years = self.frame.open_dt.apply(lambda x: x.year)
         for yr in years.unique():
             pass
-            #yield yr, PositionFrame(self.frame.ix[years == yr], zero_is_win=self.zero_is_win)
+            # yield yr, PositionFrame(self.frame.ix[years == yr], zero_is_win=self.zero_is_win)
 
     def describe_by_year(self, pl=True, duration=True, roii=True, percentiles=None, inc_ltd=True):
         years = self.frame.open_dt.apply(lambda x: x.year)

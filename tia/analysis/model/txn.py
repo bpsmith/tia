@@ -1,11 +1,9 @@
-from collections import defaultdict
-
 import pandas as pd
 
 from tia.util.decorator import lazy_property
 from tia.analysis.model.interface import TxnColumns as TC
 from tia.analysis.model.pl import Pl
-
+from tia.analysis.model.ret import RoiiRets
 from tia.analysis.util import is_decrease, is_increase, crosses_zero
 
 
@@ -47,6 +45,8 @@ def iter_txns(trds):
         if pos != 0 and is_decrease(pos, trd.qty) and crosses_zero(pos, trd.qty):
             # Split to make accounting for long/short possible
             closing_trd, opening_trd = trd.split(-pos)
+            # setattr(closing_trd, '_txn_id', 1)
+            #setattr(opening_trd, '_txn_id', 2)
             yield closing_trd
             pos = opening_trd.qty
             yield opening_trd
@@ -58,17 +58,29 @@ def iter_txns(trds):
 class Txns(object):
     def __init__(self, trades, pricer):
         """
+        #TODO - rethink if user should split trades prior to calling this method...
         :param trades: list of Trade objects
         :param pricer:
         """
         # split into l/s positions
         self.trades = tuple(iter_txns(trades))
         self.pricer = pricer
-        self.pid_to_trades = defaultdict(list)
+        self._rets = None
 
-    pids = property(lambda self: self.frame[TC.PID])
-    tids = property(lambda self: self.frame[TC.TID])
-    actions = property(lambda self: self.frame[TC.ACTION])
+
+    @property
+    def rets(self):
+        if self._rets is None:
+            self._rets = rets = RoiiRets()
+            rets.txns = self
+        return self._rets
+
+    @rets.setter
+    def rets(self, rets):
+        self._rets = rets
+        rets.txns = self
+
+    pids = property(lambda self: self.frame[TC.PID].unique())
 
     @lazy_property
     def pl(self):
@@ -84,7 +96,6 @@ class Txns(object):
         """
         rows = []
         pricer = self.pricer
-        pidmap = self.pid_to_trades
         pos = open_val = pid = 0
         for txn in self.trades:
             # These values always get copied
@@ -119,25 +130,28 @@ class Txns(object):
             # Get rid of anything but the date
             dt = txn.ts.to_period('B').to_timestamp()
             rows.append([dt, txn.ts, pid, txn.tid, txn.qty, txn.px, txn.fees, premium, open_val, pos, intent, side])
-            pidmap[pid].append(txn)
 
         df = pd.DataFrame.from_records(rows, columns=[TC.DT, TC.TS, TC.PID, TC.TID, TC.QTY, TC.PX, TC.FEES, TC.PREMIUM,
                                                       TC.OPEN_VAL, TC.POS, TC.INTENT, TC.ACTION])
         df.index.name = 'seq'
         return df
 
+    def get_pid_txns(self, pid):
+        pmask = self.frame[TC.PID] == pid
+        assert len(pmask.index) == len(self.trades), 'assume 1-1 ratio of trade to row in frame'
+        return tuple(pd.Series(self.trades)[pmask.values])
+
     def subset(self, pids):
-        mask = self.pids.isin(pids)
-        if mask.all():
+        pmask = self.frame[TC.PID].isin(pids)
+        if pmask.all():
             return self
         else:
-            tids = self.tids[mask]
-            trds = [t for t in self.trades if t.tid in tids]
-            pmap = self.pid_to_trades
+            # 1 to 1 mapping of txn to row (so can figure out trades from mask)
+            trds = tuple(pd.Series(self.trades)[pmask.values])
+            # build the object
             result = Txns(trds, self.pricer)
-            # retain pids in child
-            result._frame = self.frame.ix[mask]
-            result.pid_to_trades = {pid: pmap[pid] for pid in pids}
+            result._rets = self.rets.subset(result)
+            result._frame = self.frame.ix[pmask]
             if hasattr(self, '_pl'):
                 pl = self.pl
                 result._pl = pl.subset(result)
