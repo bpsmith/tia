@@ -1,7 +1,10 @@
 """Format helpers"""
+import math
+
 import pandas as pd
 import numpy as np
-import math
+
+from functools import partial
 
 
 class DateTimeFormat(object):
@@ -15,7 +18,7 @@ class DateTimeFormat(object):
                 value = pd.to_datetime(value)
                 if not hasattr(value, 'strftime'):
                     raise ValueError('failed to coerce %s type=%s to datetime' % (value, type(value)))
-            else:
+            else:#
                 raise ValueError('%s type(%s) has not method strftime' % (value, type(value)))
         return value.strftime(self.fmtstr)
 
@@ -58,12 +61,22 @@ class NumberFormat(object):
         self.trunc_dot_zeros = trunc_dot_zeros
 
     def __call__(self, value, **kwargs):
+        # apply any overrides
+        for k, v in kwargs.iteritems():
+            if hasattr(self, k):
+                setattr(self, k, v)
+
         if isinstance(value, pd.Series):
             return value.apply(self)
         elif isinstance(value, pd.DataFrame):
             return value.applymap(self)
         elif isinstance(value, (list, tuple)):
             return map(self, value)
+        elif isinstance(value, np.ndarray):
+            if value.ndim == 2:
+                return self(pd.DataFrame(value)).values
+            elif value.ndim == 1:
+                return self(pd.Series(value)).values
         elif not issubclass(type(value), (float, int)):
             if not self.coerce:
                 raise ValueError('NumberFormat expected number type not %s' % (type(value)))
@@ -109,21 +122,21 @@ def new_float_formatter(precision=2, commas=True, parens=True, prefix=None, suff
     return NumberFormat(**locals())
 
 
-def new_thousands_formatter(precision=1, commas=True, parens=True, nan='nan', prefix=None, trunc_dot_zeros=0):
+def new_thousands_formatter(precision=1, commas=True, parens=True, nan='nan', prefix=None, trunc_dot_zeros=0,
+                            suffix='k'):
     transform = lambda v: v * 1e-3
-    suffix = 'k'
     return NumberFormat(**locals())
 
 
-def new_millions_formatter(precision=1, commas=True, parens=True, nan='nan', prefix=None, trunc_dot_zeros=0):
+def new_millions_formatter(precision=1, commas=True, parens=True, nan='nan', prefix=None, trunc_dot_zeros=0,
+                           suffix='M'):
     transform = lambda v: v * 1e-6
-    suffix = 'M'
     return NumberFormat(**locals())
 
 
-def new_billions_formatter(precision=1, commas=True, parens=True, nan='nan', prefix=None, trunc_dot_zeros=0):
+def new_billions_formatter(precision=1, commas=True, parens=True, nan='nan', prefix=None, trunc_dot_zeros=0,
+                           suffix = 'B'):
     transform = lambda v: v * 1e-9
-    suffix = 'B'
     return NumberFormat(**locals())
 
 
@@ -155,50 +168,95 @@ def guess_formatter(values, precision=1, commas=True, parens=True, nan='nan', pr
     formatter_args = dict(precision=precision, commas=commas, parens=parens, nan=nan, prefix=prefix,
                           trunc_dot_zeros=trunc_dot_zeros)
 
-    if isinstance(values, pd.Series):
-        aval = values.abs()
-        vmax, vmin = aval.max(), aval.min()
-    elif isinstance(values, np.ndarray):
-        aval = pd.Series(values).abs()
-        vmax, vmin = aval.max(), aval.min()
-    elif isinstance(values, pd.DataFrame):
-        vmax = values.abs().max().max()
-        vmin = values.abs().min().min()
-    elif isinstance(values, (list, tuple)):
-        vmax = max(values)
-        vmin = min(values)
-    else:
-        vmax = vmin = abs(values)
-
-    if np.isnan(vmin):
-        return new_float_formatter(**formatter_args)
-    else:
-        min_digits = 0 if vmin == 0 else math.floor(math.log10(vmin))
-        #max_digits = math.floor(math.log10(vmax))
-        if min_digits >= 12:
-            return new_trillions_formatter(**formatter_args)
-        elif min_digits >= 9:
-            return new_billions_formatter(**formatter_args)
-        elif min_digits >= 6:
-            return new_millions_formatter(**formatter_args)
-        elif min_digits >= 3:
-            return new_thousands_formatter(**formatter_args)
-        elif not ignore_pcts and min_digits < 0 and vmax < 1:
-            return new_percent_formatter(**formatter_args)
-        else:
-            if isinstance(vmax, int):
-                formatter_args.pop('precision')
-                return new_int_formatter(**formatter_args)
+    try:
+        if isinstance(values, pd.Series):
+            aval = values.abs()
+            vmax, vmin = aval.max(), aval.min()
+        elif isinstance(values, np.ndarray):
+            if values.ndim == 2:
+                avalues = pd.DataFrame(values).abs()
+                vmax = avalues.max().max()
+                vmin = avalues.min().min()
+            elif values.ndim == 1:
+                aval = pd.Series(values).abs()
+                vmax, vmin = aval.max(), aval.min()
             else:
-                return new_float_formatter(**formatter_args)
+                raise ValueError('cannot accept frame with more than 2-dimensions')
+        elif isinstance(values, pd.DataFrame):
+            avalues = values.abs()
+            vmax = avalues.max().max()
+            vmin = avalues.min().min()
+        elif isinstance(values, (list, tuple)):
+            vmax = max(values)
+            vmin = min(values)
+        else:
+            vmax = vmin = abs(values)
+
+        if np.isnan(vmin):
+            return new_float_formatter(**formatter_args)
+        else:
+            min_digits = 0 if vmin == 0 else math.floor(math.log10(vmin))
+            # max_digits = math.floor(math.log10(vmax))
+            if min_digits >= 12:
+                return new_trillions_formatter(**formatter_args)
+            elif min_digits >= 9:
+                return new_billions_formatter(**formatter_args)
+            elif min_digits >= 6:
+                return new_millions_formatter(**formatter_args)
+            elif min_digits >= 3:
+                return new_thousands_formatter(**formatter_args)
+            elif not ignore_pcts and min_digits < 0 and vmax < 1:
+                return new_percent_formatter(**formatter_args)
+            else:
+                if isinstance(vmax, int):
+                    formatter_args.pop('precision')
+                    return new_int_formatter(**formatter_args)
+                else:
+                    return new_float_formatter(**formatter_args)
+    except:
+        #import sys
+        #e = sys.exc_info()[0]
+        return lambda x: x
 
 
 class DynamicNumberFormat(object):
-    def __init__(self, **formatter_args):
+    def __init__(self, method=None, **formatter_args):
+        """
+        :param method: None, cell, col
+        :param formatter_args:
+        :return:
+        """
+        if method and method not in ('cell', 'col', 'row'):
+            raise ValueError('method must be None, cell, row, or col')
         self.formatter_args = formatter_args
+        self.method = method
+
 
     def __call__(self, value, **kwargs):
-        return guess_formatter(value, **self.formatter_args)(value, **kwargs)
+        for k, v in kwargs.iteritems():
+            if hasattr(self, k):
+                setattr(self, k, v)
+        method = self.method
+
+        def get_partial():
+            return partial(self.__call__, **kwargs)
+
+        if method is not None and isinstance(value, pd.DataFrame):
+            if method == 'cell':
+                return value.applymap(get_partial())
+            elif method == 'row':
+                return value.T.applymap(get_partial()).T
+            else:
+                return value.apply(get_partial())
+        elif method == 'cell' and isinstance(value, pd.Series):
+            return value.apply(get_partial())
+        else:
+            return guess_formatter(value, **self.formatter_args)(value, **kwargs)
+
+
+def new_dynamic_formatter(method=None, precision=1, commas=True, parens=True, nan='nan', prefix=None, ignore_pcts=0,
+                          trunc_dot_zeros=0):
+    return DynamicNumberFormat(**locals())
 
 
 # Common Formats
