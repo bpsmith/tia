@@ -1,9 +1,12 @@
 """
 inspiration from R Package - PerformanceAnalytics
 """
+from collections import OrderedDict
+
 import pandas as pd
 import numpy as np
-from collections import OrderedDict
+
+from tia.analysis.util import per_series
 
 
 PER_YEAR_MAP = {
@@ -78,6 +81,7 @@ def periodicity(freq_or_frame):
             else:
                 # Attempt to resolve it
                 import warnings
+
                 freq = guess_freq(freq_or_frame.index)
                 warnings.warn('frequency not set. guessed it to be %s' % freq)
                 return periodicity(freq)
@@ -136,9 +140,10 @@ def returns(prices, method='simple', periods=1, fill_method='pad', limit=None, f
             np.putmask(data.values, mask, np.nan)
             return data
         else:
-            return pd.DataFrame({name: returns(col, method, periods, fill_method, limit, freq) for name, col in prices.iteritems()},
-                                    columns=prices.columns,
-                                    index=prices.index)
+            return pd.DataFrame(
+                {name: returns(col, method, periods, fill_method, limit, freq) for name, col in prices.iteritems()},
+                columns=prices.columns,
+                index=prices.index)
 
 
 def returns_cumulative(returns, geometric=True, expanding=False):
@@ -220,20 +225,19 @@ def drawdowns(returns, geometric=True):
     """
     wealth = 1. + returns_cumulative(returns, geometric=geometric, expanding=True)
     values = wealth.values
-
     if values.ndim == 2:
         ncols = values.shape[-1]
         values = np.vstack(([1.] * ncols, values))
         maxwealth = pd.expanding_max(values)[1:]
-        drawdowns = wealth / maxwealth - 1.
-        drawdowns[drawdowns > 0] = 0  # Can happen if first returns are positive
-        return drawdowns
+        dds = wealth / maxwealth - 1.
+        dds[dds > 0] = 0  # Can happen if first returns are positive
+        return dds
     elif values.ndim == 1:
         values = np.hstack(([1.], values))
         maxwealth = pd.expanding_max(values)[1:]
-        drawdowns = wealth / maxwealth - 1.
-        drawdowns[drawdowns > 0] = 0  # Can happen if first returns are positive
-        return drawdowns
+        dds = wealth / maxwealth - 1.
+        dds[dds > 0] = 0  # Can happen if first returns are positive
+        return dds
     else:
         raise ValueError('unable to process array with %s dimensions' % values.ndim)
 
@@ -257,7 +261,7 @@ def max_drawdown(returns=None, geometric=True, dd=None, inc_date=False):
         return res if inc_date else res.maxdd
     else:
         mddidx = dd.idxmin()
-        #if mddidx == dd.index[0]:
+        # if mddidx == dd.index[0]:
         #    # no maxff
         #    return 0 if not inc_date else (0, None)
         #else:
@@ -268,10 +272,37 @@ def max_drawdown(returns=None, geometric=True, dd=None, inc_date=False):
         return mdd if not inc_date else (mdd, mddidx)
 
 
+@per_series(result_is_frame=1)
+def drawdown_info(returns, geometric=True):
+    """Return a DataFrame containing information about ALL the drawdowns for the rets. The frame
+    contains the columns:
+    'dd start': drawdown start date
+    'dd end': drawdown end date
+    'maxdd': maximium drawdown
+    'maxdd dt': maximum drawdown
+    'days': duration of drawdown
+    """
+    dd = drawdowns(returns, geometric=True).to_frame()
+    last = dd.index[-1]
+    dd.columns = ['vals']
+    dd['nonzero'] = (dd.vals != 0).astype(int)
+    dd['gid'] = (dd.nonzero.shift(1) != dd.nonzero).astype(int).cumsum()
+    ixs = dd.reset_index().groupby(['nonzero', 'gid'])['index'].apply(lambda x: np.array(x))
+    rows = []
+    for ix in ixs[1]:
+        sub = dd.ix[ix]
+        # need to get t+1 since actually draw down ends on the 0 value
+        end = dd.index[dd.index.get_loc(sub.index[-1]) + (last != sub.index[-1] and 1 or 0)]
+        rows.append([sub.index[0], end, sub.vals.min(), sub.vals.idxmin()])
+    f = pd.DataFrame.from_records(rows, columns=['dd start', 'dd end', 'maxdd', 'maxdd dt'])
+    f['days'] = (f['dd end'] - f['dd start']).astype('timedelta64[D]')
+    return f
+
+
 def std_annualized(returns, scale=None, expanding=0):
     scale = _resolve_periods_in_year(scale, returns)
     if expanding:
-        return np.sqrt(scale) * pd.expanding_std(returns, )
+        return np.sqrt(scale) * pd.expanding_std(returns)
     else:
         return np.sqrt(scale) * returns.std()
 
@@ -288,20 +319,12 @@ def sharpe(returns, rfr=0, expanding=0):
     else:
         return excess_returns(returns, rfr).mean() / returns.std()
 
-#
-# Need to rethink if using the average is really even useful
-#
-
-#def rolling_sharpe(returns, window, rfr=0, min_periods=1):
-#    excess = excess_returns(returns, rfr)
-#    return pd.rolling_mean(excess, window, min_periods=min_periods) / pd.rolling_std(returns, window, min_periods=min_periods)
-
 
 def sharpe_annualized(returns, rfr=0, scale=None, expanding=False, geometric=False):
     scale = _resolve_periods_in_year(scale, returns)
-    std = std_annualized(returns, scale=scale, expanding=expanding)
-    rets = returns_annualized(returns, scale=scale, expanding=expanding, geometric=geometric)
-    return rets / std
+    stdann = std_annualized(returns, scale=scale, expanding=expanding)
+    retsann = returns_annualized(returns, scale=scale, expanding=expanding, geometric=geometric)
+    return (retsann - rfr) / stdann
 
 
 def downside_deviation(returns, mar=0, full=1, expanding=0):
@@ -363,7 +386,8 @@ def information_ratio(returns, bm, scale=None, expanding=0):
     if expanding:
         # Align the returns
         bm = bm.reindex_like(returns, method='pad')
-        active_premium = returns_annualized(returns, scale=scale, expanding=1) - returns_annualized(bm, scale=scale, expanding=1)
+        active_premium = returns_annualized(returns, scale=scale, expanding=1) - returns_annualized(bm, scale=scale,
+                                                                                                    expanding=1)
         tracking_error = std_annualized(excess_returns(returns, bm), scale=scale, expanding=1)
         return active_premium / tracking_error
     else:
