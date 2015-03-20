@@ -157,7 +157,7 @@ def new_datetime_formatter(fmtstr='%Y-%m-%d', coerce=True):
     return DateTimeFormat(**locals())
 
 
-def guess_formatter(values, precision=1, commas=True, parens=True, nan='nan', prefix=None, ignore_pcts=0,
+def guess_formatter(values, precision=1, commas=True, parens=True, nan='nan', prefix=None, pcts=0,
                     trunc_dot_zeros=0):
     """Based on the values, return the most suitable formatter
     Parameters
@@ -205,7 +205,7 @@ def guess_formatter(values, precision=1, commas=True, parens=True, nan='nan', pr
                 return new_millions_formatter(**formatter_args)
             elif min_digits >= 3:
                 return new_thousands_formatter(**formatter_args)
-            elif not ignore_pcts and min_digits < 0 and vmax < 1:
+            elif not pcts and min_digits < 0 and vmax < 1:
                 return new_percent_formatter(**formatter_args)
             else:
                 if isinstance(vmax, int):
@@ -233,9 +233,10 @@ class DynamicNumberFormat(object):
 
 
     def __call__(self, value, **kwargs):
-        for k, v in kwargs.iteritems():
+        for k in list(kwargs.keys()):
             if hasattr(self, k):
-                setattr(self, k, v)
+                setattr(self, k, kwargs[k])
+                kwargs.pop(k)
         method = self.method
 
         def get_partial():
@@ -254,7 +255,7 @@ class DynamicNumberFormat(object):
             return guess_formatter(value, **self.formatter_args)(value, **kwargs)
 
 
-def new_dynamic_formatter(method=None, precision=1, commas=True, parens=True, nan='nan', prefix=None, ignore_pcts=0,
+def new_dynamic_formatter(method=None, precision=1, commas=True, parens=True, nan='nan', prefix=None, pcts=0,
                           trunc_dot_zeros=0):
     return DynamicNumberFormat(**locals())
 
@@ -275,4 +276,4 @@ BillionDollarsFormatter = new_billions_formatter(prefix='$')
 TrillionDollarsFormatter = new_trillions_formatter(prefix='$')
 YmdFormatter = new_datetime_formatter('%Y%m%d', True)
 Y_m_dFormatter = new_datetime_formatter('%Y_%m_%d', True)
-DynamicNumberFormatter = DynamicNumberFormat(ignore_pcts=1, trunc_dot_zeros=1)
+DynamicNumberFormatter = DynamicNumberFormat(pcts=1, trunc_dot_zeros=1)
