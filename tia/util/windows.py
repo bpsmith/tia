@@ -42,7 +42,7 @@ class WinSCPBatch(object):
     Example
     -------
     batch = WinSCPBatch('your_session_name', logfile='c:\\temp\\winscp\\mylog.log')
-    batch.add_download('remotefile.txt', 'c:\\temp\\winscp\\localfile,txt')
+    batch.add_download('remotefile.txt', 'c:\\temp\\winscp\\localfile.txt')
     batch.execute()
     """
     def __init__(self, session, logfile=None):

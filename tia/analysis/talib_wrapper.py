@@ -4,9 +4,9 @@ help to interface with ta-lib dealing with NaNs and returning timeseries and suc
 
 """
 import talib
-from tia.analysis.ta import per_series, per_level
 import pandas as pd
-import numpy as np
+
+from tia.analysis.util import per_series, per_level
 
 
 @per_level()

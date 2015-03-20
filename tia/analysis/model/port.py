@@ -131,6 +131,12 @@ class SingleAssetPortfolio(object):
     dly_txn_pl_frame = property(lambda self: self.txns.pl.dly_txn_frame)
     ltd_pl_frame = property(lambda self: self.txns.pl.ltd_frame)
     dly_pl_frame = property(lambda self: self.txns.pl.dly_frame)
+    # direct access to stats
+    weekly_ret_stats = property(lambda self: self.txns.rets.weekly_stats)
+    monthly_ret_stats = property(lambda self: self.txns.rets.monthly_stats)
+    quarterly_ret_stats = property(lambda self: self.txns.rets.quarterly_stats)
+    annual_ret_stats = property(lambda self: self.txns.rets.annual_stats)
+    dly_ret_stats = property(lambda self: self.txns.rets.dly_stats)
 
     position_summary = property(lambda self: self.positions.summary)
 
@@ -146,7 +152,7 @@ class SingleAssetPortfolio(object):
             rets = self.weekly_rets
         else:
             rets = self.dly_rets.asfreq('B')
-        plot_return_on_dollar(rets, title=None, show_maxdd=show_maxdd, figsize=figsize, ax=None, append=append)
+        plot_return_on_dollar(rets, title=title, show_maxdd=show_maxdd, figsize=figsize, ax=None, append=append)
 
     def subset(self, pids):
         txns = self.txns

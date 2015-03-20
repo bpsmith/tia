@@ -164,36 +164,3 @@ class Pl(object):
         # recreate ltd from dly
         return result
 
-
-class PlAnalyzer(object):
-    def __init__(self, pl):
-        self.pl = pl
-
-    def dly_txn_roii(self):
-        """ return the daily return on initial investment Series reported at transaction level"""
-        # build pl path and get pct change to get compound dly returns
-        dly = self.pl.dly_txn
-        rets = pd.Series(0, index=dly.index, name='dly_roii')
-        for pid, pframe in dly[['open_val', 'pid', 'pl']].groupby('pid'):
-            if pid != 0:
-                cost = abs(pframe.open_val.iloc[0])
-                eod = cost + pframe.pl.cumsum()
-                sod = eod.shift(1)
-                sod.iloc[0] = cost
-                pos_rets = eod / sod - 1.
-                rets[pframe.index] = pos_rets
-        return rets
-
-    @property
-    def dly_txn_days_open(self):
-        """ return Series of the cumulative day count for the number of days a position is open """
-        dly = self.pl.dly_txn
-        days = pd.Series(0, index=dly.index, name='day')
-        for pid, grp in dly.ix[dly.pid != 0].groupby('pid'):
-            # ensure date is only counted once
-            barr = grp.dt == grp.dt.shift(1)
-            barr.iloc[0] = False
-            tmp = (~barr).astype(float).cumsum()
-            days.iloc[grp.index] = tmp
-        return days
-
