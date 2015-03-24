@@ -1,18 +1,22 @@
 """
 Common matplotlib utilities
 """
+import uuid
+import os
+
 from matplotlib.ticker import FuncFormatter
 from matplotlib.dates import DateFormatter
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas
-import uuid
-import os
+
 import tia.util.fmt as fmt
+from tia.util.decorator import DeferredExecutionMixin
 
 
 class _CustomDateFormatter(DateFormatter):
     """Extend so I can use with pandas Period objects """
+
     def __call__(self, x, pos=0):
         if not hasattr(x, 'strftime'):
             x = pandas.to_datetime(x)
@@ -20,28 +24,7 @@ class _CustomDateFormatter(DateFormatter):
         return x
 
 
-# Define the formatters for direct access
-
-class _DeferredExecutionMixin(object):
-    """Mixin which defers execution of all methods until 'apply' is invoked or the object is invoked '()'"""
-    def __init__(self):
-        self._deferred = []
-
-    def __getattribute__(self, name):
-        attr = super(_DeferredExecutionMixin, self).__getattribute__(name)
-        if callable(attr) and not name.startswith('_') and name != 'apply' and not isinstance(attr, _DeferredExecutionMixin):
-            def wrapped(*args, **kwargs):
-                self._deferred.append(lambda: attr(*args, **kwargs))
-                return self
-            return wrapped
-        else:
-            return attr
-
-    def __call__(self, *args, **kwargs):
-        [f() for f in self._deferred]
-
-
-class _AxisFormat(_DeferredExecutionMixin):
+class _AxisFormat(DeferredExecutionMixin):
     def __init__(self, parent):
         super(_AxisFormat, self).__init__()
         self.parent = parent
@@ -120,7 +103,7 @@ class _XAxisFormat(_AxisFormat):
         return self
 
 
-class AxesFormat(_DeferredExecutionMixin):
+class AxesFormat(DeferredExecutionMixin):
     def __init__(self):
         super(AxesFormat, self).__init__()
         self.X = _XAxisFormat(self)
@@ -142,6 +125,7 @@ class FigureHelper(object):
     def __init__(self, basedir=None, ext='.pdf'):
         if not basedir:
             import tempfile
+
             basedir = tempfile.gettempdir()
         self.basedir = basedir
         self.last = None
@@ -180,6 +164,7 @@ class FigureHelper(object):
 
     def subplots(self, *params, **kwargs):
         f, ax = plt.subplots(*params, **kwargs)
+
         def axes_iter(axes):
             if not hasattr(axes, '__iter__'):
                 return iter(list([axes]))
