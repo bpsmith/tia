@@ -73,7 +73,7 @@ class Pl(object):
 
             dvds, closing_pxs, mkt_vals = [pl[c] for c in [MC.DVDS, MC.CLOSE, MC.MKT_VAL]]
             # Ensure only end of day is kept for dividends (join will match dvd to any transaction during day
-            dvds[dts == dts.shift(-1)] = 0
+            dvds = dvds.where(dts != dts.shift(-1), 0)
             # fill in pl dates
             open_vals.ffill(inplace=1)
             open_vals.fillna(0, inplace=1)
@@ -135,8 +135,7 @@ class Pl(object):
     @property
     def ltd_frame(self):
         txnlvl = self.ltd_txn_frame[PL.PL_COLUMNS]
-        dly = txnlvl.set_index(PL.DT).resample('B', 'last', kind='period').dropna(how='all')
-        return dly
+        return txnlvl.set_index(PL.DT).groupby(lambda x: x).apply(lambda x: x.iloc[-1])
 
     @property
     def dly_frame(self):
@@ -151,6 +150,15 @@ class Pl(object):
     weekly = property(lambda self: self.dly.resample('W', how='sum'))
     dly = property(lambda self: self.dly_frame[PL.PL])
 
+    def new_stats(self, pl, label):
+        return PlStats(pl, label)
+
+    dly_stats = lazy_property(lambda self: self.new_stats(self.dly, 'dly'), 'dly_stats')
+    weekly_stats = property(lambda self: self.new_stats(self.weekly, 'weekly'), 'weekly_stats')
+    monthly_stats = property(lambda self: self.new_stats(self.monthly, 'monthly'), 'monthly_stats')
+    quarterly_stats = property(lambda self: self.new_stats(self.quarterly, 'quarterly'), 'quarterly_stats')
+    annual_stats = property(lambda self: self.new_stats(self.annual, 'annual'), 'annual_stats')
+
     def subset(self, txns):
         """To perform a subset it is not possible to reuse the frame since it is LTD, so we convert to daily then
         compute ltd from daily
@@ -163,4 +171,89 @@ class Pl(object):
         # determine which Timestamp columns can be removed as an old position may have multiple txns on same day
         # recreate ltd from dly
         return result
+
+
+class PlStats(object):
+    def __init__(self, pl, label=None):
+        self.pl = pl
+        self.label = label
+
+    @lazy_property
+    def drawdown_info(self):
+        dd = self.drawdowns.to_frame()
+        last = dd.index[-1]
+        dd.columns = ['vals']
+        dd['nonzero'] = (dd.vals != 0).astype(int)
+        dd['gid'] = (dd.nonzero.shift(1) != dd.nonzero).astype(int).cumsum()
+        ixs = dd.reset_index().groupby(['nonzero', 'gid'])[dd.index.name or 'index'].apply(lambda x: np.array(x))
+        rows = []
+        for ix in ixs[1]:
+            sub = dd.ix[ix]
+            # need to get t+1 since actually draw down ends on the 0 value
+            end = dd.index[dd.index.get_loc(sub.index[-1]) + (last != sub.index[-1] and 1 or 0)]
+            rows.append([sub.index[0], end, sub.vals.min(), sub.vals.idxmin()])
+        f = pd.DataFrame.from_records(rows, columns=['dd start', 'dd end', 'maxdd', 'maxdd dt'])
+        f['days'] = (f['dd end'] - f['dd start']).astype('timedelta64[D]')
+        return f
+
+    @lazy_property
+    def drawdowns(self):
+        ltd = self.pl.cumsum()
+        maxpl = pd.expanding_max(ltd)
+        maxpl[maxpl < 0] = 0
+        dd = ltd - maxpl
+        return dd
+
+    # scalar data
+    pl_avg = lazy_property(lambda self: self.pl.mean(), 'ret_avg')
+    std = lazy_property(lambda self: self.pl.std(), 'std')
+    maxdd = lazy_property(lambda self: self.drawdown_info['maxdd'].min(), 'maxdd')
+    maxdd_dt = lazy_property(lambda self: self.drawdown_info['maxdd dt'].ix[self.drawdown_info['maxdd'].idxmin()],
+                             'maxdd_dt')
+    dd_avg = lazy_property(lambda self: self.drawdown_info['maxdd'].mean(), 'dd_avg')
+
+    @lazy_property
+    def series(self):
+        d = OrderedDict()
+        d['pl avg'] = self.pl_avg
+        d['std'] = self.std
+        d['maxdd'] = self.maxdd
+        d['maxdd dt'] = self.maxdd_dt
+        d['dd avg'] = self.dd_avg
+        d['cnt'] = self.pl.notnull().astype(int).sum()
+        return pd.Series(d, name=self.label or self.pl.index.freq)
+
+    def _repr_html_(self):
+        from tia.util.fmt import new_dynamic_formatter
+        fmt = new_dynamic_formatter(method='row', precision=2, pcts=1, trunc_dot_zeros=1, parens=1)
+        return fmt(self.series.to_frame())._repr_html_()
+
+    def plot_ltd(self, ax=None, style='k', label='ltd', show_dd=1, guess_xlabel=1):
+        ltd = self.pl.cumsum()
+        ax = ltd.plot(ax=ax, style=style, label=label)
+        if show_dd:
+            dd = self.drawdowns
+            dd.plot(style='r', label='drawdowns', alpha=.5)
+            ax.fill_between(dd.index, 0, dd.values, facecolor='red', alpha=.25)
+            fmt = lambda x: x
+            # guess the formatter
+            if guess_xlabel:
+                from tia.util.fmt import guess_formatter
+                from tia.util.mplot import AxesFormat
+                fmt = guess_formatter(ltd.abs().max(), precision=1)
+                AxesFormat().Y.apply_format(fmt).apply(ax)
+                ax.legend(loc='upper left')
+
+            # show the actualy date and value
+            mdt, mdd = self.maxdd_dt, self.maxdd
+            bbox_props = dict(boxstyle="round", fc="w", ec="0.5", alpha=0.25)
+            try:
+                dtstr = '{0}'.format(mdt.to_period())
+            except:
+                # assume daily
+                dtstr = '{0}'.format(hasattr(mdt, 'date') and mdt.date() or mdt)
+            ax.text(mdt, dd[mdt], "{1} \n {0}".format(fmt(mdd), dtstr).strip(), ha="center", va="top", size=8,
+                    bbox=bbox_props)
+        return ax
+
 

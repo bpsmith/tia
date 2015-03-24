@@ -137,8 +137,13 @@ class SingleAssetPortfolio(object):
     quarterly_ret_stats = property(lambda self: self.txns.rets.quarterly_stats)
     annual_ret_stats = property(lambda self: self.txns.rets.annual_stats)
     dly_ret_stats = property(lambda self: self.txns.rets.dly_stats)
+    weekly_pl_stats = property(lambda self: self.txns.pl.weekly_stats)
+    monthly_pl_stats = property(lambda self: self.txns.pl.monthly_stats)
+    quarterly_pl_stats = property(lambda self: self.txns.pl.quarterly_stats)
+    annual_pl_stats = property(lambda self: self.txns.pl.annual_stats)
+    dly_pl_stats = property(lambda self: self.txns.pl.dly_stats)
 
-    position_summary = property(lambda self: self.positions.summary)
+    position_frame = property(lambda self: self.positions.frame)
 
     def plot_ret_on_dollar(self, freq='M', title=None, show_maxdd=1, figsize=None, ax=None, append=0):
         freq = freq.lower()
@@ -191,44 +196,44 @@ class PortfolioSubset(object):
 
     @staticmethod
     def winners(port):
-        summary = port.positions.summary
-        pids = summary[summary[PC.PL] >= 0].index
+        frame = port.positions.frame
+        pids = frame[frame[PC.PL] >= 0].index
         return port.subset(pids)
 
     @staticmethod
     def losers(port):
-        summary = port.positions.summary
-        pids = summary[summary[PC.PL] < 0].index
+        frame = port.positions.frame
+        pids = frame[frame[PC.PL] < 0].index
         return port.subset(pids)
 
     @staticmethod
     def top_pl(port, n=10):
-        pids = port.positions.summary[PC.PL].order()[-n:].index
+        pids = port.positions.frame[PC.PL].order()[-n:].index
         return port.subset(pids)
 
     @staticmethod
     def top_rets(port, n=10):
-        pids = port.positions.summary[PC.RET].order()[-n:].index
+        pids = port.positions.frame[PC.RET].order()[-n:].index
         return port.subset(pids)
 
     @staticmethod
     def bottom_pl(port, n=10):
-        pids = port.positions.summary[PC.PL].order()[:n].index
+        pids = port.positions.frame[PC.PL].order()[:n].index
         return port.subset(pids)
 
     @staticmethod
     def bottom_rets(port, n=10):
-        pids = port.positions.summary[PC.RET].order()[:n].index
+        pids = port.positions.frame[PC.RET].order()[:n].index
         return port.subset(pids)
 
     @staticmethod
     def top_durations(port, n=10):
-        pids = port.positions.summary[PC.DURATION].order()[-n:].index
+        pids = port.positions.frame[PC.DURATION].order()[-n:].index
         return port.subset(pids)
 
     @staticmethod
     def bottom_durations(port, n=10):
-        pids = port.positions.summary[PC.DURATION].order()[:n].index
+        pids = port.positions.frame[PC.DURATION].order()[:n].index
         return port.subset(pids)
 
 

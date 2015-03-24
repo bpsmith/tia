@@ -1,6 +1,8 @@
 import pandas as pd
 import numpy as np
 
+from collections import OrderedDict
+
 from tia.analysis.model.txn import Intent, Action
 from tia.analysis.model.interface import PlColumns as PL, PositionColumns as PC
 from tia.util.decorator import lazy_property
@@ -86,9 +88,9 @@ class Positions(object):
         self.txns = txns
 
     pids = property(lambda self: self.txns.pids)
-    sides = property(lambda self: self.summary[PC.SIDE])
-    long_pids = property(lambda self: self.summary[self.summary[PC.SIDE] == Side.Long].index)
-    short_pids = property(lambda self: self.summary[self.summary[PC.SIDE] == Side.Short].index)
+    sides = property(lambda self: self.frame[PC.SIDE])
+    long_pids = property(lambda self: self.frame[self.frame[PC.SIDE] == Side.Long].index)
+    short_pids = property(lambda self: self.frame[self.frame[PC.SIDE] == Side.Short].index)
 
     def __len__(self):
         return len(self.pids)
@@ -110,12 +112,12 @@ class Positions(object):
         """Construct a new Positions object from the new Txns object (which is assumed to be a subset)
         of current Txns object"""
         result = Positions(subtxns)
-        if hasattr(self, '_summary'):
-            result._summary = self._summary.ix[subtxns.pids]
+        if hasattr(self, '_frame'):
+            result._frame = self._frame.ix[subtxns.pids]
         return result
 
     @lazy_property
-    def summary(self):
+    def frame(self):
         vals = []
         for pos in iter(self):
             vals.append([
@@ -141,65 +143,106 @@ class Positions(object):
         f[PC.PID] = f[PC.PID].astype(int)
         return f.set_index(PC.PID)
 
+    @lazy_property
+    def stats(self):
+        return PositionsStats(self)
 
-class PositionsAnalyzer(object):
-    # TODO - fix this
-    def __init__(self, frame, zero_is_win=1):
-        winmask = frame.pl >= 0 if zero_is_win else frame.pl > 0
-        self.zero_is_win = zero_is_win
-        self.winner_frame = frame.ix[winmask]
-        self.loser_frame = frame.ix[~winmask]
-        self.frame = frame
+    def _repr_html_(self):
+        return self.frame._repr_html_()
 
-    win_cnt = property(lambda self: len(self.winner_frame.index))
-    lose_cnt = property(lambda self: len(self.loser_frame.index))
-    cnt = property(lambda self: len(self.frame.index))
+
+class PositionsStats(object):
+    def __init__(self, positions):
+        self.positions = positions
+
+    _frame = property(lambda self: self.positions.frame)
+    _loser_frame = property(lambda self: self._frame.ix[self._frame[PC.RET] < 0])
+    _winner_frame = property(lambda self: self._frame.ix[self._frame[PC.RET] >= 0])
+
+    win_cnt = property(lambda self: len(self._winner_frame.index))
+    lose_cnt = property(lambda self: len(self._loser_frame.index))
+    cnt = property(lambda self: len(self._frame.index))
     win_pct = property(lambda self: np.divide(float(self.win_cnt), float(self.cnt)))
 
-    def describe(self, pl=True, duration=True, roii=True, percentiles=None):
-        def _doit(col, alias):
-            cols = ['Winners', 'Losers', 'Total']
-            arrs = [self.winner_frame[col], self.loser_frame[col], self.frame[col]]
-            f = pd.DataFrame(dict(zip(cols, arrs)), columns=cols).describe()
-            f.columns = pd.MultiIndex.from_arrays([[alias] * 3, f.columns.values])
-            f.columns.names = ['stat', 'side']
-            return f.T
+    @lazy_property
+    def pl_summary(self):
+        return self._frame[PC.PL].describe()
 
-        pieces = []
-        pl and pieces.append(_doit('pl', 'pl'))
-        roii and pieces.append(_doit('roii', 'roii'))
-        duration and pieces.append(_doit('duration', 'duration'))
-        return pd.concat(pieces)
+    @lazy_property
+    def ret_summary(self):
+        return self._frame[PC.RET].describe()
 
-    def describe_pl(self, percentiles=None):
-        return self.describe(pl=True, duration=False, roii=False, percentiles=percentiles)
+    @lazy_property
+    def duration_summary(self):
+        return self._frame[PC.DURATION].describe()
 
-    def describe_duration(self, percentiles=None):
-        return self.describe(pl=False, duration=True, roii=False, percentiles=percentiles)
+    pl_avg = property(lambda self: self.pl_summary['mean'])
+    pl_min = property(lambda self: self.pl_summary['min'])
+    pl_max = property(lambda self: self.pl_summary['max'])
+    pl_std = property(lambda self: self.pl_summary['std'])
 
-    def describe_roii(self, percentiles=None):
-        return self.describe(pl=False, duration=False, roii=True, percentiles=percentiles)
+    ret_avg = property(lambda self: self.ret_summary['mean'])
+    ret_min = property(lambda self: self.ret_summary['min'])
+    ret_max = property(lambda self: self.ret_summary['max'])
+    ret_std = property(lambda self: self.ret_summary['std'])
 
-    def iter_by_year(self):
-        """Iterate the tuple of (year, PositionFrame) by breaking up the positions in the year a position was open"""
-        years = self.frame.open_dt.apply(lambda x: x.year)
-        for yr in years.unique():
-            pass
-            # yield yr, PositionFrame(self.frame.ix[years == yr], zero_is_win=self.zero_is_win)
+    duration_avg = property(lambda self: self.duration_summary['mean'])
+    duration_min = property(lambda self: self.duration_summary['min'])
+    duration_max = property(lambda self: self.duration_summary['max'])
+    duration_std = property(lambda self: self.duration_summary['std'])
 
-    def describe_by_year(self, pl=True, duration=True, roii=True, percentiles=None, inc_ltd=True):
-        years = self.frame.open_dt.apply(lambda x: x.year)
-        # fill in missing years?
-        def get_desc(yr, pf):
-            desc = pf.describe(pl=pl, duration=duration, roii=roii, percentiles=percentiles)
-            desc['year'] = yr
-            desc.set_index('year', append=1, inplace=1)
-            return desc
+    # consecutive winners/losers
+    @lazy_property
+    def consecutive_frame(self):
+        """Return a DataFrame with columns cnt, pids, pl. cnt is the number of pids in the sequence. pl is the pl sum"""
+        vals = (self._frame[PC.RET] >= 0).astype(int)
+        seq = (vals.shift(1) != vals).astype(int).cumsum()
+        def _do_apply(sub):
+            return pd.Series({
+                'pids': sub.index.values,
+                'pl': sub[PC.PL].sum(),
+                'cnt': len(sub.index),
+                'is_win': sub[PC.RET].iloc[0] >= 0,
+            })
+        return self._frame.groupby(seq).apply(_do_apply)
 
-        pieces = [get_desc(yr, pf) for yr, pf in self.iter_by_year()]
-        inc_ltd and pieces.append(get_desc('ltd', self))
-        return pd.concat(pieces)
+    @property
+    def consecutive_win_frame(self):
+        cf = self.consecutive_frame
+        return cf.ix[cf.is_win]
 
+    @property
+    def consecutive_loss_frame(self):
+        cf = self.consecutive_frame
+        return cf.ix[~cf.is_win]
 
+    consecutive_wins_max = property(lambda self: self.consecutive_win_frame.cnt.max())
+    consecutive_wins_avg = property(lambda self: self.consecutive_win_frame.cnt.mean())
+    consecutive_losses_max = property(lambda self: self.consecutive_loss_frame.cnt.max())
+    consecutive_losses_avg = property(lambda self: self.consecutive_loss_frame.cnt.mean())
+
+    @property
+    def series(self):
+        data = OrderedDict()
+        data['cnt'] = self.cnt
+        data['win_pct'] = self.win_pct
+        data['ret_avg'] = self.ret_avg
+        data['ret_std'] = self.ret_std
+        data['ret_min'] = self.ret_min
+        data['ret_max'] = self.ret_max
+        data['pl_avg'] = self.pl_avg
+        data['pl_std'] = self.pl_std
+        data['pl_min'] = self.pl_min
+        data['pl_max'] = self.pl_max
+        data['duration_avg'] = self.duration_avg
+        data['duration_std'] = self.duration_std
+        data['consecutive_win_cnt_max'] = self.consecutive_wins_max
+        data['consecutive_loss_cnt_max'] = self.consecutive_losses_max
+        return pd.Series(data, name='positions')
+
+    def _repr_html_(self):
+        from tia.util.fmt import new_dynamic_formatter
+        fmt = new_dynamic_formatter(method='row', precision=2, pcts=1, trunc_dot_zeros=1, parens=1)
+        return fmt(self.series.to_frame())._repr_html_()
 
 
