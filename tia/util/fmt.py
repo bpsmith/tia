@@ -205,7 +205,7 @@ def guess_formatter(values, precision=1, commas=True, parens=True, nan='nan', pr
                 return new_millions_formatter(**formatter_args)
             elif min_digits >= 3:
                 return new_thousands_formatter(**formatter_args)
-            elif not pcts and min_digits < 0 and vmax < 1:
+            elif pcts and min_digits < 0 and vmax < 1:
                 return new_percent_formatter(**formatter_args)
             else:
                 if isinstance(vmax, int):
