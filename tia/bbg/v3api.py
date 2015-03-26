@@ -80,14 +80,23 @@ class XmlHelper(object):
             """
             return str(val)
         elif dtype == 10:  # Date
-            v = ele.getValue()
-            return datetime(year=v.year, month=v.month, day=v.day) if v else np.nan
+            if ele.isNull():
+                return pd.NaT
+            else:
+                v = ele.getValue()
+                return datetime(year=v.year, month=v.month, day=v.day) if v else pd.NaT
         elif dtype == 11:  # Time
-            v = ele.getValue()
-            return datetime(hour=v.hour, minute=v.minute, second=v.second).time() if v else np.nan
+            if ele.isNull():
+                return pd.NaT
+            else:
+                v = ele.getValue()
+                return datetime(hour=v.hour, minute=v.minute, second=v.second).time() if v else np.nan
         elif dtype == 13:  # Datetime
-            v = ele.getValue()
-            return v
+            if ele.isNull():
+                return pd.NaT
+            else:
+                v = ele.getValue()
+                return v
         elif dtype == 14:  # Enumeration
             # raise NotImplementedError('ENUMERATION data type needs implemented')
             return str(ele.getValue())
