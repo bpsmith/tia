@@ -4,6 +4,7 @@ import math
 import pandas as pd
 import numpy as np
 
+from pandas.core.common import is_datetime_arraylike
 from functools import partial
 
 
@@ -13,14 +14,17 @@ class DateTimeFormat(object):
         self.coerce = coerce
 
     def __call__(self, value):
-        if not hasattr(value, 'strftime'):
-            if self.coerce:
-                value = pd.to_datetime(value)
-                if not hasattr(value, 'strftime'):
-                    raise ValueError('failed to coerce %s type=%s to datetime' % (value, type(value)))
-            else:#
-                raise ValueError('%s type(%s) has not method strftime' % (value, type(value)))
-        return value.strftime(self.fmtstr)
+        if isinstance(value, pd.Series):
+            return value.apply(self.__call__)
+        else:
+            if not hasattr(value, 'strftime'):
+                if self.coerce:
+                    value = pd.to_datetime(value)
+                    if not hasattr(value, 'strftime'):
+                        raise ValueError('failed to coerce %s type=%s to datetime' % (value, type(value)))
+                else:#
+                    raise ValueError('%s type(%s) has not method strftime' % (value, type(value)))
+            return value.strftime(self.fmtstr)
 
 
 class NumberFormat(object):
@@ -66,17 +70,19 @@ class NumberFormat(object):
             if hasattr(self, k):
                 setattr(self, k, v)
 
+        self_with_args = partial(self.__call__, **kwargs)
+
         if isinstance(value, pd.Series):
-            return value.apply(self)
+            return value.apply(self_with_args)
         elif isinstance(value, pd.DataFrame):
-            return value.applymap(self)
+            return value.applymap(self_with_args)
         elif isinstance(value, (list, tuple)):
-            return map(self, value)
+            return map(self_with_args, value)
         elif isinstance(value, np.ndarray):
             if value.ndim == 2:
-                return self(pd.DataFrame(value)).values
+                return self_with_args(pd.DataFrame(value)).values
             elif value.ndim == 1:
-                return self(pd.Series(value)).values
+                return self_with_args(pd.Series(value)).values
         elif not issubclass(type(value), (float, int)):
             if not self.coerce:
                 raise ValueError('NumberFormat expected number type not %s' % (type(value)))
@@ -101,7 +107,7 @@ class NumberFormat(object):
             self.precision) + self.kind + '}'
         txt = fmt.format(value)
         if self.precision > 0 and self.trunc_dot_zeros:
-            txt = txt.rstrip('0').rstrip('.')
+            txt = txt.replace('.' + '0' * self.precision, '')
 
         if self.parens:
             isneg = txt[0] == '-'
@@ -170,6 +176,12 @@ def guess_formatter(values, precision=1, commas=True, parens=True, nan='nan', pr
 
     try:
         if isinstance(values, pd.Series):
+            # added a helper method for date time specific arrays as timestamps can be annoying when printed
+            if is_datetime_arraylike(values):
+                # basic date formatter if no hours or minutes
+                if (values.dt.hour == 0).all() and (values.dt.minute == 0).all():
+                    return new_datetime_formatter()
+
             aval = values.abs()
             vmax, vmin = aval.max(), aval.min()
         elif isinstance(values, np.ndarray):
@@ -239,18 +251,18 @@ class DynamicNumberFormat(object):
                 kwargs.pop(k)
         method = self.method
 
-        def get_partial():
-            return partial(self.__call__, **kwargs)
+
+        self_with_args = partial(self.__call__, **kwargs)
 
         if method is not None and isinstance(value, pd.DataFrame):
             if method == 'cell':
-                return value.applymap(get_partial())
+                return value.applymap(self_with_args)
             elif method == 'row':
-                return value.T.applymap(get_partial()).T
+                return value.T.apply(self_with_args).T
             else:
-                return value.apply(get_partial())
+                return value.apply(self_with_args)
         elif method == 'cell' and isinstance(value, pd.Series):
-            return value.apply(get_partial())
+            return value.apply(self_with_args)
         else:
             return guess_formatter(value, **self.formatter_args)(value, **kwargs)
 
