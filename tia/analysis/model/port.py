@@ -310,7 +310,7 @@ class PortfolioSummary(object):
         data[('port', 'mret avg')] = mstats.ret_avg
         data[('port', 'mret avg ann')] = mstats.ret_avg_ann
         data[('port', 'mret std ann')] = mstats.std_ann
-        data[('port', 'sharpe ann')] = mstats.std_ann
+        data[('port', 'sharpe ann')] = mstats.sharpe_ann
         data[('port', 'maxdd')] = dstats.maxdd
         data[('port', 'maxdd dt')] = dstats.maxdd_dt
         data[('port', 'avg dd')] = dstats.dd_avg
