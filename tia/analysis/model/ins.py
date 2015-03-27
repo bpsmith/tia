@@ -97,6 +97,34 @@ class Instrument(CostCalculator, EodMarketData):
             return Instrument(self.sid, InstrumentPrices(tpxs), multiplier=self.multiplier)
 
 
+class Instruments(object):
+    def __init__(self, instruments=None):
+        if instruments is None:
+            instruments = pd.Series()
+        elif isinstance(instruments, (tuple, list)):
+            instruments = pd.Series(instruments, index=[i.sid for i in instruments])
+        elif not isinstance(instruments, pd.Series):
+            raise ValueError('instruments must be None, tuple, list, or Series. Not %s' % type(instruments))
+        self._instruments = instruments
+
+    sides = property(lambda self: self._instruments.index)
+
+    def add(self, ins):
+        self._instruments = self._instruments.append(pd.Series({ins.sid: ins}))
+
+    def __getitem__(self, key):
+        if isinstance(key, basestring):
+            return self._instruments[key]
+        else:
+            return Instruments(self._instruments[key])
+
+    @property
+    def frame(self):
+        kvals = {sid: ins.pxs.frame for sid, ins in self._instruments.iteritems()}
+        return pd.concat(kvals.values(), axis=1, keys=kvals.keys())
+
+
+
 def get_dividends_yahoo(sid, start, end):
     # Taken from get_data_yahoo in Pandas library and adjust a single parameter to get dividends
     from pandas.compat import StringIO, bytes_to_str
@@ -124,27 +152,31 @@ def get_dividends_yahoo(sid, start, end):
     return rs
 
 
-def load_yahoo_stock(sid, start=None, end=None, dvds=True):
-    end = end and pd.to_datetime(end) or pd.datetime.now()
-    start = start and pd.to_datetime(start) or end + pd.datetools.relativedelta(years=-1)
-    data = get_data_yahoo(sid, start=start, end=end)
-    data = data.rename(columns=lambda c: c.lower())
-    if dvds:
-        d = get_dividends_yahoo(sid, start, end)
-        d.columns = ['dvds']
-        if not d.empty:
-            # sanity check - not expected currently
-            missing = d.index.difference(data.index)
-            if len(missing) > 0:
-                raise Exception('dividends occur on non-business day, not expecting this')
-            # another sanity check to ensure yahoo rolls dividends up, in case a special occurs on same day
-            if not d.index.is_unique:
-                d = d.groupby(lambda x: x).sum()
-            data = data.join(d)
-        else:
-            data['dvds'] = np.nan
-    pxs = InstrumentPrices(data)
-    return Instrument(sid, pxs, multiplier=1.)
+def load_yahoo_stock(sids, start=None, end=None, dvds=True):
+    if hasattr(sids, '__iter__') and not isinstance(sids, basestring):
+        return Instruments([load_yahoo_stock(sid, start=start, end=end, dvds=dvds) for sid in sids])
+    else:
+        sid = sids
+        end = end and pd.to_datetime(end) or pd.datetime.now()
+        start = start and pd.to_datetime(start) or end + pd.datetools.relativedelta(years=-1)
+        data = get_data_yahoo(sid, start=start, end=end)
+        data = data.rename(columns=lambda c: c.lower())
+        if dvds:
+            d = get_dividends_yahoo(sid, start, end)
+            d.columns = ['dvds']
+            if not d.empty:
+                # sanity check - not expected currently
+                missing = d.index.difference(data.index)
+                if len(missing) > 0:
+                    raise Exception('dividends occur on non-business day, not expecting this')
+                # another sanity check to ensure yahoo rolls dividends up, in case a special occurs on same day
+                if not d.index.is_unique:
+                    d = d.groupby(lambda x: x).sum()
+                data = data.join(d)
+            else:
+                data['dvds'] = np.nan
+        pxs = InstrumentPrices(data)
+        return Instrument(sid, pxs, multiplier=1.)
 
 
 def load_bbg_stock(sid_or_accessor, start=None, end=None, dvds=True, terminal=None):

@@ -72,7 +72,38 @@ class TestFormat(unittest.TestCase):
 
         # percents
         s = pd.Series([.024, -.561, .987])
-        actual = fmt.guess_formatter(s, precision=1)(s)
+        actual = fmt.guess_formatter(s, precision=1, pcts=1)(s)
         expected = pd.Series(['2.4%', '(56.1%)', '98.7%'])
         pt.assert_series_equal(expected, actual)
+
+    def test_dynamic_formatter(self):
+        kwargs = dict(precision=1, commas=1, parens=1, pcts=1, trunc_dot_zeros=1)
+        byrow = fmt.new_dynamic_formatter('row', **kwargs)
+        bycol = fmt.new_dynamic_formatter('col', **kwargs)
+        bycell = fmt.new_dynamic_formatter('cell', **kwargs)
+
+        todt = pd.to_datetime
+        f = pd.DataFrame(dict(pcts=[.1, .2343, -.9234], flt=[123., 1234., -12345.],
+                              ts=[todt('1/1/2012'), todt('1/1/2013'), todt('1/1/2014')]))
+
+        # by column
+        expected_bycol = {'pcts': ['10%', '23.4%', '(92.3%)'],
+                          'flt': ['123', '1,234', '(12,345)'],
+                          'ts': ['2012-01-01', '2013-01-01', '2014-01-01']}
+
+
+        pt.assert_frame_equal(pd.DataFrame(expected_bycol), bycol(f))
+        pt.assert_frame_equal(pd.DataFrame(expected_bycol).T, byrow(f.T))
+
+        expected_bycell = {'pcts': ['10%', '23.4%', '(92.3%)'],
+                          'flt': ['123', '1.2k', '(12.3k)'],
+                          'ts': ['2012-01-01', '2013-01-01', '2014-01-01']}
+        pt.assert_frame_equal(pd.DataFrame(expected_bycell), bycell(f))
+        # ensure nothing different
+        pt.assert_frame_equal(pd.DataFrame(expected_bycell).T, bycell(f.T))
+
+
+
+
+
 
