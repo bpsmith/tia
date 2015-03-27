@@ -107,7 +107,7 @@ class Instruments(object):
             raise ValueError('instruments must be None, tuple, list, or Series. Not %s' % type(instruments))
         self._instruments = instruments
 
-    sides = property(lambda self: self._instruments.index)
+    sids = property(lambda self: self._instruments.index)
 
     def add(self, ins):
         self._instruments = self._instruments.append(pd.Series({ins.sid: ins}))
