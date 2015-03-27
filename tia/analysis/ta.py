@@ -303,10 +303,11 @@ class Signal(object):
         if not isinstance(pxs, pd.Series):
             raise ValueError('pxs expected to be Series')
 
-        signal = self.signal
         blotter = TradeBlotter()
-        diff = signal.dropna().diff()
-        changes = signal[diff.isnull() | (diff != 0)]
+        signal = self.signal.dropna()
+        diff = signal.diff()
+        diff.iloc[0] = 0
+        changes = signal[diff != 0]
         lsig = 0
         qtyfct = self._qty_fct(pxs.index)
         for ts, sig in changes.iteritems():
@@ -326,10 +327,11 @@ class Signal(object):
         return blotter.trades
 
     def open_to_close(self, open_pxs, close_pxs):
-        signal = self.signal
         blotter = TradeBlotter()
-        diff = signal.dropna().diff()
-        changes = signal[diff.isnull() | (diff != 0)]
+        signal = self.signal.dropna()
+        diff = signal.diff()
+        diff.iloc[0] = 0
+        changes = signal[diff != 0]
         lsig = 0
         nopen = len(open_pxs)
         qtyfct = self._qty_fct(open_pxs.index)

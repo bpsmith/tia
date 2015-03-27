@@ -289,11 +289,12 @@ def drawdown_info(returns, geometric=True):
     dd['gid'] = (dd.nonzero.shift(1) != dd.nonzero).astype(int).cumsum()
     ixs = dd.reset_index().groupby(['nonzero', 'gid'])['index'].apply(lambda x: np.array(x))
     rows = []
-    for ix in ixs[1]:
-        sub = dd.ix[ix]
-        # need to get t+1 since actually draw down ends on the 0 value
-        end = dd.index[dd.index.get_loc(sub.index[-1]) + (last != sub.index[-1] and 1 or 0)]
-        rows.append([sub.index[0], end, sub.vals.min(), sub.vals.idxmin()])
+    if 1 in ixs:
+        for ix in ixs[1]:
+            sub = dd.ix[ix]
+            # need to get t+1 since actually draw down ends on the 0 value
+            end = dd.index[dd.index.get_loc(sub.index[-1]) + (last != sub.index[-1] and 1 or 0)]
+            rows.append([sub.index[0], end, sub.vals.min(), sub.vals.idxmin()])
     f = pd.DataFrame.from_records(rows, columns=['dd start', 'dd end', 'maxdd', 'maxdd dt'])
     f['days'] = (f['dd end'] - f['dd start']).astype('timedelta64[D]')
     return f

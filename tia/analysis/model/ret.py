@@ -127,6 +127,7 @@ class RetStats(object):
     drawdowns = lazy_property(lambda self: drawdowns(self.rets), 'drawdowns')
 
     # scalar data
+    cnt = property(lambda self: len(self.rets.index))
     total = lazy_property(lambda self: returns_cumulative(self.rets), name='total')
     total_ann = lazy_property(lambda self: returns_annualized(self.rets), name='total_ann')
     ret_avg = lazy_property(lambda self: self.rets.mean(), 'ret_avg')
@@ -136,8 +137,8 @@ class RetStats(object):
     sharpe = lazy_property(lambda self: sharpe(self.rets), 'sharpe')
     sharpe_ann = lazy_property(lambda self: sharpe_annualized(self.rets), 'sharpe_ann')
     maxdd = lazy_property(lambda self: self.drawdown_info['maxdd'].min(), 'maxdd')
-    maxdd_dt = lazy_property(lambda self: self.drawdown_info['maxdd dt'].ix[self.drawdown_info['maxdd'].idxmin()],
-                             'maxdd_dt')
+    maxdd_dt = lazy_property(lambda self: None if self.drawdown_info.empty else self.drawdown_info['maxdd dt'].ix[
+        self.drawdown_info['maxdd'].idxmin()], 'maxdd_dt')
     dd_avg = lazy_property(lambda self: self.drawdown_info['maxdd'].mean(), 'dd_avg')
 
     @lazy_property
@@ -157,7 +158,10 @@ class RetStats(object):
         return pd.Series(d, name=self.label or self.rets.index.freq)
 
     def _repr_html_(self):
-        return self.series.to_frame()._repr_html_()
+        from tia.util.fmt import new_dynamic_formatter
+
+        fmt = new_dynamic_formatter(method='row', precision=2, pcts=1, trunc_dot_zeros=1, parens=1)
+        return fmt(self.series.to_frame())._repr_html_()
 
 
 

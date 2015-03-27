@@ -7,17 +7,13 @@ class CostCalculator(object):
     def get_premium(self, qty, px, ts=None):
         raise NotImplementedError()
 
-    def get_market_value(self, qty, px, ts=None):
+    def get_mkt_val(self, qty, px, ts=None):
         raise NotImplementedError()
 
 
 class EodMarketData(object):
-    def get_frame(self, truncate_dvds=True):
-        """Build a DataFrame with columns ('close', 'mktval', 'dvd')
-
-        :param truncate_dvds: If True, then drop any dvd values which are outside the pxs range
-        :return:
-        """
+    def get_eod_frame(self):
+        """Return an end of day DataFrame with columns ('close', 'mktval', 'dvd')"""
         raise NotImplementedError()
 
 
@@ -28,7 +24,7 @@ class MarketDataColumns(object):
 
 
 class TxnColumns(object):
-    DT = 'dt'
+    DT = 'date'
     TS = 'txn_ts'
     PID = 'pid'
     TID = 'tid'
@@ -58,7 +54,7 @@ class TxnColumns(object):
 
 
 class PlColumns(object):
-    DT = 'dt'
+    DT = 'date'
     PID = TxnColumns.PID
     TID = TxnColumns.TID
     POS = 'pos'

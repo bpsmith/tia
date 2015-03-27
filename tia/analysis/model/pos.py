@@ -176,17 +176,20 @@ class PositionsStats(object):
     def duration_summary(self):
         return self._frame[PC.DURATION].describe()
 
-    pl_avg = property(lambda self: self.pl_summary['mean'])
+    pl_mean = property(lambda self: self.pl_summary['mean'])
+    pl_avg = pl_mean
     pl_min = property(lambda self: self.pl_summary['min'])
     pl_max = property(lambda self: self.pl_summary['max'])
     pl_std = property(lambda self: self.pl_summary['std'])
 
-    ret_avg = property(lambda self: self.ret_summary['mean'])
+    ret_mean = property(lambda self: self.ret_summary['mean'])
+    ret_avg = ret_mean
     ret_min = property(lambda self: self.ret_summary['min'])
     ret_max = property(lambda self: self.ret_summary['max'])
     ret_std = property(lambda self: self.ret_summary['std'])
 
-    duration_avg = property(lambda self: self.duration_summary['mean'])
+    duration_mean = property(lambda self: self.duration_summary['mean'])
+    duration_avg = duration_mean
     duration_min = property(lambda self: self.duration_summary['min'])
     duration_max = property(lambda self: self.duration_summary['max'])
     duration_std = property(lambda self: self.duration_summary['std'])

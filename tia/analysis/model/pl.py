@@ -4,10 +4,11 @@ import pandas as pd
 import numpy as np
 
 from tia.analysis.model.interface import TxnColumns as TC, MarketDataColumns as MC, PlColumns as PL
+from tia.analysis.perf import periods_in_year
 from tia.util.decorator import lazy_property
 
 
-__all__ = ['Pl']
+__all__ = ['Pl', 'PlStats']
 
 
 def _dly_to_ltd(frame, dly_cols):
@@ -23,7 +24,7 @@ def _ltd_to_dly(frame, ltd_cols):
     ilocs = [frame.columns.get_loc(_) for _ in ltd_cols]
     diff = frame[ltd_cols].diff()
     # not sure why this is failing
-    #pl.iloc[1:, ilocs] = diff.iloc[1:]
+    # pl.iloc[1:, ilocs] = diff.iloc[1:]
     for i, cidx in enumerate(ilocs):
         pl.iloc[1:, cidx] = diff.iloc[1:, i]
     return pl
@@ -42,16 +43,16 @@ class Pl(object):
     def ltd_txn_frame(self):
         """Compute the long/short live-to-date transaction level profit and loss. Uses an open average calculation"""
         txndata = self.txns.frame
-        mktdata = self.txns.pricer.get_frame()
+        mktdata = self.txns.pricer.get_eod_frame()
         if not isinstance(mktdata.index, pd.DatetimeIndex):
             mktdata.to_timestamp(freq='B')
 
         # get the set of all txn dts and mkt data dts
         pl = pd.merge(txndata, mktdata.reset_index(), how='outer', on=PL.DT)
         if pl[TC.PID].isnull().all():
-            cols = [PL.DT, PL.POS, PL.PID, PL.TID,  PL.TXN_QTY, PL.TXN_PX, PL.TXN_FEES, PL.TXN_PREMIUM, PL.TXN_INTENT,
-                     PL.TXN_ACTION, PL.CLOSE_PX, PL.OPEN_VAL, PL.MKT_VAL, PL.TOT_VAL, PL.DVDS, PL.FEES, PL.RPL_GROSS,
-                     PL.RPL, PL.UPL, PL.PL]
+            cols = [PL.DT, PL.POS, PL.PID, PL.TID, PL.TXN_QTY, PL.TXN_PX, PL.TXN_FEES, PL.TXN_PREMIUM, PL.TXN_INTENT,
+                    PL.TXN_ACTION, PL.CLOSE_PX, PL.OPEN_VAL, PL.MKT_VAL, PL.TOT_VAL, PL.DVDS, PL.FEES, PL.RPL_GROSS,
+                    PL.RPL, PL.UPL, PL.PL]
             return pd.DataFrame(columns=cols)
         else:
             pl.sort([TC.DT, TC.PID, TC.TID], inplace=1)
@@ -67,8 +68,10 @@ class Pl(object):
                 raise Exception(msg.format(len(missing), mdates))
 
             # Now there is a row for every timestamp. Now compute the pl and fill in where missing data should be
-            cols = [TC.DT, TC.POS, TC.PID, TC.TID, TC.INTENT, TC.ACTION, TC.FEES, TC.QTY, TC.PX, TC.PREMIUM, TC.OPEN_VAL]
-            dts, pos_qtys, pids, tids, intents, sides, txn_fees, txn_qtys, txn_pxs, premiums, open_vals = [pl[c] for c in
+            cols = [TC.DT, TC.POS, TC.PID, TC.TID, TC.INTENT, TC.ACTION, TC.FEES, TC.QTY, TC.PX, TC.PREMIUM,
+                    TC.OPEN_VAL]
+            dts, pos_qtys, pids, tids, intents, sides, txn_fees, txn_qtys, txn_pxs, premiums, open_vals = [pl[c] for c
+                                                                                                           in
                                                                                                            cols]
 
             dvds, closing_pxs, mkt_vals = [pl[c] for c in [MC.DVDS, MC.CLOSE, MC.MKT_VAL]]
@@ -187,11 +190,12 @@ class PlStats(object):
         dd['gid'] = (dd.nonzero.shift(1) != dd.nonzero).astype(int).cumsum()
         ixs = dd.reset_index().groupby(['nonzero', 'gid'])[dd.index.name or 'index'].apply(lambda x: np.array(x))
         rows = []
-        for ix in ixs[1]:
-            sub = dd.ix[ix]
-            # need to get t+1 since actually draw down ends on the 0 value
-            end = dd.index[dd.index.get_loc(sub.index[-1]) + (last != sub.index[-1] and 1 or 0)]
-            rows.append([sub.index[0], end, sub.vals.min(), sub.vals.idxmin()])
+        if 1 in ixs:
+            for ix in ixs[1]:
+                sub = dd.ix[ix]
+                # need to get t+1 since actually draw down ends on the 0 value
+                end = dd.index[dd.index.get_loc(sub.index[-1]) + (last != sub.index[-1] and 1 or 0)]
+                rows.append([sub.index[0], end, sub.vals.min(), sub.vals.idxmin()])
         f = pd.DataFrame.from_records(rows, columns=['dd start', 'dd end', 'maxdd', 'maxdd dt'])
         f['days'] = (f['dd end'] - f['dd start']).astype('timedelta64[D]')
         return f
@@ -205,17 +209,20 @@ class PlStats(object):
         return dd
 
     # scalar data
-    pl_avg = lazy_property(lambda self: self.pl.mean(), 'ret_avg')
+    cnt = property(lambda self: len(self.pl.index))
+    mean = lazy_property(lambda self: self.pl.mean(), 'mean')
+    avg = mean
     std = lazy_property(lambda self: self.pl.std(), 'std')
+    std_ann = lazy_property(lambda self: np.sqrt(periods_in_year(self.pl)) * self.std, 'std_ann')
     maxdd = lazy_property(lambda self: self.drawdown_info['maxdd'].min(), 'maxdd')
-    maxdd_dt = lazy_property(lambda self: self.drawdown_info['maxdd dt'].ix[self.drawdown_info['maxdd'].idxmin()],
-                             'maxdd_dt')
+    maxdd_dt = lazy_property(lambda self: None if self.drawdown_info.empty else self.drawdown_info['maxdd dt'].ix[
+        self.drawdown_info['maxdd'].idxmin()], 'maxdd_dt')
     dd_avg = lazy_property(lambda self: self.drawdown_info['maxdd'].mean(), 'dd_avg')
 
     @lazy_property
     def series(self):
         d = OrderedDict()
-        d['pl avg'] = self.pl_avg
+        d['avg'] = self.avg
         d['std'] = self.std
         d['maxdd'] = self.maxdd
         d['maxdd dt'] = self.maxdd_dt
@@ -225,6 +232,7 @@ class PlStats(object):
 
     def _repr_html_(self):
         from tia.util.fmt import new_dynamic_formatter
+
         fmt = new_dynamic_formatter(method='row', precision=2, pcts=1, trunc_dot_zeros=1, parens=1)
         return fmt(self.series.to_frame())._repr_html_()
 
@@ -240,6 +248,7 @@ class PlStats(object):
             if guess_xlabel:
                 from tia.util.fmt import guess_formatter
                 from tia.util.mplot import AxesFormat
+
                 fmt = guess_formatter(ltd.abs().max(), precision=1)
                 AxesFormat().Y.apply_format(fmt).apply(ax)
                 ax.legend(loc='upper left')
