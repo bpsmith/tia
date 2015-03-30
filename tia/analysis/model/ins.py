@@ -124,7 +124,6 @@ class Instruments(object):
         return pd.concat(kvals.values(), axis=1, keys=kvals.keys())
 
 
-
 def get_dividends_yahoo(sid, start, end):
     # Taken from get_data_yahoo in Pandas library and adjust a single parameter to get dividends
     from pandas.compat import StringIO, bytes_to_str

@@ -8,16 +8,7 @@ __all__ = ['Trade', 'TradeBlotter']
 
 
 class Trade(object):
-    """Simplified Trade Model
-
-    :param tid:
-    :param ts:
-    :param qty:
-    :param px:
-    :param fees:
-    :param kwargs:
-    :return:
-    """
+    """Simple Trade Model"""
 
     def __init__(self, tid, ts, qty, px, fees=0., **kwargs):
         self.tid = tid
