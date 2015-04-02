@@ -8,7 +8,7 @@ from reportlab.platypus import Flowable, KeepInFrame, Image
 from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
 
 
-__all__ = ['PdfImage', 'DynamicPdfImage', 'DynamicImage', 'DynamicKeepInFrame']
+__all__ = ['PdfImage', 'DynamicPdfImage', 'DynamicImage', 'DynamicKeepInFrame', 'new_dynamic_image']
 
 
 class PdfImage(Flowable):
@@ -31,7 +31,6 @@ class PdfImage(Flowable):
             self.drawWidth = width or imgw
             self.drawHeight = height or imgh
         elif kind in ['percentage', '%']:
-            print '%s * %s * %s' % (imgw, width, 0.01)
             self.drawWidth = imgw * width * 0.01
             self.drawHeight = imgh * height * 0.01
         elif kind in ['bound', 'proportional']:
@@ -110,3 +109,13 @@ class DynamicImage(Image):
             self.drawHeight = self.maxh / r
             self.drawWidth = self.maxw / r
         return Image.wrap(self, awidth, aheight)
+
+
+def new_dynamic_image(path, hAlign=None):
+    if path.lower().endswith('pdf'):
+        return DynamicPdfImage(path)
+    else:
+        img = DynamicImage(path)
+        hAlign and setattr(img, 'hAlign', hAlign)
+        return img
+
