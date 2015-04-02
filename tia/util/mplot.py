@@ -154,10 +154,16 @@ class FigureHelper(object):
         key = key or ''
         fn = '%s%s%s' % (key, fn, ext)
         fn = os.path.join(self.basedir, fn)
-        figure = self.figure or plt.gcf()
+
+        figure = self.figure
+        use_plt = 0
+        if figure is None:
+            figure = plt.gcf()
+            use_plt = 1
+
         figure.savefig(fn, dpi=dpi or self.dpi)
         if clear:
-            figure.clf()
+            use_plt and plt.close() or figure.clf()
         if key:
             self.fnmap[key] = fn
         self.last = fn
