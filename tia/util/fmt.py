@@ -4,7 +4,19 @@ import math
 import pandas as pd
 import numpy as np
 
-from pandas.core.common import is_datetime_arraylike
+try:
+    from pandas.core.common import is_datetime_arraylike
+except:
+    import pandas.lib as lib
+    from pandas.core.common import ABCSeries
+
+    def is_datetime_arraylike(arr):
+        """ return if we are datetime arraylike / DatetimeIndex """
+        if isinstance(arr, pd.DatetimeIndex):
+            return True
+        inferred = lib.infer_dtype(arr)
+        return 'datetime' in inferred
+
 from functools import partial
 
 
@@ -22,7 +34,7 @@ class DateTimeFormat(object):
                     value = pd.to_datetime(value)
                     if not hasattr(value, 'strftime'):
                         raise ValueError('failed to coerce %s type=%s to datetime' % (value, type(value)))
-                else:#
+                else:  #
                     raise ValueError('%s type(%s) has not method strftime' % (value, type(value)))
             return value.strftime(self.fmtstr)
 
@@ -141,7 +153,7 @@ def new_millions_formatter(precision=1, commas=True, parens=True, nan='nan', pre
 
 
 def new_billions_formatter(precision=1, commas=True, parens=True, nan='nan', prefix=None, trunc_dot_zeros=0,
-                           suffix = 'B'):
+                           suffix='B'):
     transform = lambda v: v * 1e-9
     return NumberFormat(**locals())
 
@@ -175,13 +187,21 @@ def guess_formatter(values, precision=1, commas=True, parens=True, nan='nan', pr
                           trunc_dot_zeros=trunc_dot_zeros)
 
     try:
-        if isinstance(values, pd.Series):
-            # added a helper method for date time specific arrays as timestamps can be annoying when printed
-            if is_datetime_arraylike(values):
-                # basic date formatter if no hours or minutes
+        if isinstance(values, pd.datetime) and values.hour == 0 and values.minute == 0:
+            return new_datetime_formatter()
+        elif is_datetime_arraylike(values):
+            # basic date formatter if no hours or minutes
+            if hasattr(values, 'dt'):
                 if (values.dt.hour == 0).all() and (values.dt.minute == 0).all():
                     return new_datetime_formatter()
+            elif isinstance(values, pd.Series):
+                if values.apply(lambda d: d.hour == 0).all() and values.apply(lambda d: d.minute == 0).all():
+                    return new_datetime_formatter()
+            elif isinstance(values, pd.DataFrame):
+                if values.applymap(lambda d: d.hour == 0).all().all() and values.applymap(lambda d: d.minute == 0).all().all():
+                    return new_datetime_formatter()
 
+        elif isinstance(values, pd.Series):
             aval = values.abs()
             vmax, vmin = aval.max(), aval.min()
         elif isinstance(values, np.ndarray):
@@ -226,7 +246,7 @@ def guess_formatter(values, precision=1, commas=True, parens=True, nan='nan', pr
                 else:
                     return new_float_formatter(**formatter_args)
     except:
-        #import sys
+        # import sys
         #e = sys.exc_info()[0]
         return lambda x: x
 
@@ -250,7 +270,6 @@ class DynamicNumberFormat(object):
                 setattr(self, k, kwargs[k])
                 kwargs.pop(k)
         method = self.method
-
 
         self_with_args = partial(self.__call__, **kwargs)
 
