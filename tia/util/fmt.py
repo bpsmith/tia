@@ -36,7 +36,7 @@ class DateTimeFormat(object):
                         raise ValueError('failed to coerce %s type=%s to datetime' % (value, type(value)))
                 else:  #
                     raise ValueError('%s type(%s) has not method strftime' % (value, type(value)))
-            return value.strftime(self.fmtstr)
+            return (value == value and value.strftime(self.fmtstr)) or str(value)
 
 
 class NumberFormat(object):
@@ -171,7 +171,7 @@ def new_percent_formatter(precision=2, commas=True, parens=True, prefix=None, su
     return NumberFormat(**locals())
 
 
-def new_datetime_formatter(fmtstr='%Y-%m-%d', coerce=True):
+def new_datetime_formatter(fmtstr='%d-%b-%y', coerce=True):
     return DateTimeFormat(**locals())
 
 
@@ -195,10 +195,10 @@ def guess_formatter(values, precision=1, commas=True, parens=True, nan='nan', pr
                 if (values.dt.hour == 0).all() and (values.dt.minute == 0).all():
                     return new_datetime_formatter()
             elif isinstance(values, pd.Series):
-                if values.apply(lambda d: d.hour == 0).all() and values.apply(lambda d: d.minute == 0).all():
+                if values.dropna().apply(lambda d: d.hour == 0).all() and values.apply(lambda d: d.minute == 0).all():
                     return new_datetime_formatter()
             elif isinstance(values, pd.DataFrame):
-                if values.applymap(lambda d: d.hour == 0).all().all() and values.applymap(lambda d: d.minute == 0).all().all():
+                if values.dropna().applymap(lambda d: d != d or (d.hour == 0 and d.minute == 0)).all().all():
                     return new_datetime_formatter()
 
         elif isinstance(values, pd.Series):
