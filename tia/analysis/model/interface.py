@@ -110,4 +110,6 @@ class PositionColumns(object):
     DURATION = 'duration'
     NUM_TXNS = 'ntxns'
     RET = 'ret'
+    RET_MIN = 'ret_min'
+    RET_MAX = 'ret_max'
     STATE = 'state'

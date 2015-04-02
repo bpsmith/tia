@@ -68,7 +68,8 @@ class TestAnalysis(unittest.TestCase):
 
         # few sanity checks on dly (non-txn level)
         for col in ['pl', 'rpl', 'upl', 'dvds', 'fees']:
-            pdtest.assert_series_equal(dly.set_index('dt')[col].resample('B', how='sum', kind='period'), port.dly_pl_frame[col])
+            pdtest.assert_series_equal(dly.set_index('date')[col].resample('B', how='sum', kind='period'),
+                                       port.dly_pl_frame[col].to_period('B'))
 
         # Double check the long / short add up to the total
         l, s = port.long.ltd_pl_frame, port.short.ltd_pl_frame
@@ -106,6 +107,22 @@ class TestAnalysis(unittest.TestCase):
         self.assertRaises(Exception, lambda: blotter.open(2, 10))
         self.assertRaises(Exception, lambda: blotter.increase(-2, 10))
         self.assertRaises(Exception, lambda: blotter.decrease(2, 10))
+
+
+    def test_port(self):
+        t1 = Trade(1, pd.to_datetime('3/23/2015 10:00'), 1, 10.)
+        t2 = Trade(2, pd.to_datetime('3/23/2015 11:00'), -1, 11.)
+        t3 = Trade(3, pd.to_datetime('3/23/2015 12:00'), -1, 12.)
+        t4 = Trade(4, pd.to_datetime('3/23/2015 13:00'), 1, 13.)
+        pp = PortfolioPricer(1., closing_pxs=pd.Series(10., index=[t1.ts]).asfreq('B', normalize=1))
+        port = SingleAssetPortfolio(pp, [t1, t2, t3, t4])
+        # make sure long/short is correct
+        pdtest.assert_frame_equal(port.positions.frame.ix[1:1], port.long.positions.frame)
+        pdtest.assert_frame_equal(port.positions.frame.ix[2:2], port.short.positions.frame)
+        # some sanity checks
+        pdtest.assert_series_equal(port.dly_pl.cumsum(), port.ltd_pl)
+        pdtest.assert_series_equal(port.dly_pl, port.long.dly_pl + port.short.dly_pl)
+
 
 
 

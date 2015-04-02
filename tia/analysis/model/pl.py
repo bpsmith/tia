@@ -50,10 +50,28 @@ class Pl(object):
         # get the set of all txn dts and mkt data dts
         pl = pd.merge(txndata, mktdata.reset_index(), how='outer', on=PL.DT)
         if pl[TC.PID].isnull().all():
-            cols = [PL.DT, PL.POS, PL.PID, PL.TID, PL.TXN_QTY, PL.TXN_PX, PL.TXN_FEES, PL.TXN_PREMIUM, PL.TXN_INTENT,
-                    PL.TXN_ACTION, PL.CLOSE_PX, PL.OPEN_VAL, PL.MKT_VAL, PL.TOT_VAL, PL.DVDS, PL.FEES, PL.RPL_GROSS,
-                    PL.RPL, PL.UPL, PL.PL]
-            return pd.DataFrame(columns=cols)
+            frame = pd.DataFrame(index=pl.index)
+            frame[PL.DT] = pl[PL.DT]
+            frame[PL.POS] = 0
+            frame[PL.PID] = 0
+            frame[PL.TID] = 0
+            frame[PL.TXN_QTY] = np.nan
+            frame[PL.TXN_PX] = np.nan
+            frame[PL.TXN_FEES] = 0
+            frame[PL.TXN_PREMIUM] = 0
+            frame[PL.TXN_INTENT] = 0
+            frame[PL.TXN_ACTION] = 0
+            frame[PL.CLOSE_PX] = pl[PL.CLOSE_PX]
+            frame[PL.OPEN_VAL] = 0
+            frame[PL.MKT_VAL] = 0
+            frame[PL.TOT_VAL] = 0
+            frame[PL.DVDS] = 0
+            frame[PL.FEES] = 0
+            frame[PL.RPL_GROSS] = 0
+            frame[PL.RPL] = 0
+            frame[PL.UPL] = 0
+            frame[PL.PL] = 0
+            return frame
         else:
             pl.sort([TC.DT, TC.PID, TC.TID], inplace=1)
             pl.reset_index(inplace=1, drop=1)
@@ -251,7 +269,7 @@ class PlStats(object):
 
                 fmt = guess_formatter(ltd.abs().max(), precision=1)
                 AxesFormat().Y.apply_format(fmt).apply(ax)
-                ax.legend(loc='upper left')
+                ax.legend(loc='upper left', prop={'size': 12})
 
             # show the actualy date and value
             mdt, mdd = self.maxdd_dt, self.maxdd

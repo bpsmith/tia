@@ -1,7 +1,7 @@
+from collections import OrderedDict
+
 import pandas as pd
 import numpy as np
-
-from collections import OrderedDict
 
 from tia.analysis.model.txn import Intent, Action
 from tia.analysis.model.interface import PlColumns as PL, PositionColumns as PC
@@ -48,7 +48,11 @@ class Position(object):
         self.pl = cumpl.iloc[-1]
         self.pl_min = cumpl.min()
         self.pl_max = cumpl.max()
-        self.ret = (1. + dly_txn_ret).prod() - 1.
+
+        rpath = (1. + self.dly_ret).cumprod() - 1.
+        self.ret = rpath.iloc[-1]
+        self.ret_min = rpath.min()
+        self.ret_max = rpath.max()
         self.duration = len(dly_txn_pl_frame[PL.DT].drop_duplicates())
         self.ntxns = len(trades)
 
@@ -57,10 +61,11 @@ class Position(object):
 
     @property
     def dly_ret(self):
-        ltd = (1. + self.dly_txn_ret).cumprod() - 1.
+        ltd = (1. + self.dly_txn_ret).cumprod()
         ltd.index = self.dly_txn_pl_frame[PL.DT]
         dly = ltd.groupby(lambda x: x).apply(lambda x: x[-1])
         dly.iloc[1:] = dly.pct_change()[1:]
+        dly.iloc[0] = dly.iloc[0] / 1. - 1.
         return dly
 
     @property
@@ -114,6 +119,9 @@ class Positions(object):
         result = Positions(subtxns)
         if hasattr(self, '_frame'):
             result._frame = self._frame.ix[subtxns.pids]
+            # passing in array results in index name being removed for some reason???
+            if result._frame.index.name != self._frame.index.name:
+                result._frame.index.name = self._frame.index.name
         return result
 
     @lazy_property
@@ -133,12 +141,14 @@ class Positions(object):
                 pos.pl_max,
                 pos.pl,
                 pos.ret,
+                pos.ret_min,
+                pos.ret_max,
                 pos.duration,
                 pos.ntxns,
                 pos.state
             ])
         cols = [PC.PID, PC.SIDE, PC.OPEN_DT, PC.CLOSE_DT, PC.OPEN_QTY, PC.OPEN_PX, PC.CLOSE_PX, PC.OPEN_PREMIUM, \
-                PC.PL_MIN, PC.PL_MAX, PC.PL, PC.RET, PC.DURATION, PC.NUM_TXNS, PC.STATE]
+                PC.PL_MIN, PC.PL_MAX, PC.PL, PC.RET, PC.RET_MIN, PC.RET_MAX, PC.DURATION, PC.NUM_TXNS, PC.STATE]
         f = pd.DataFrame.from_records(vals, columns=cols)
         f[PC.PID] = f[PC.PID].astype(int)
         return f.set_index(PC.PID)
@@ -149,6 +159,77 @@ class Positions(object):
 
     def _repr_html_(self):
         return self.frame._repr_html_()
+
+    def plot_rets(self, ls=1, ax=None):
+        """Plot each of the position returns
+
+        :param ls: True, if positions should be broken into long/short
+        :param ax: Axes
+        :param regr: True, if regression line is shown
+        """
+        import matplotlib.pyplot as plt
+        from tia.util.mplot import AxesFormat
+
+        if ax is None:
+            ax = plt.gca()
+
+        frame = self.frame
+
+        if not ls:
+            ax.scatter(frame.index, frame.ret, c='k', marker='o', label='All')
+        else:
+            if len(self.long_pids) > 0:
+                lframe = frame.ix[frame.index.isin(self.long_pids)]
+                ax.scatter(lframe.index, lframe.ret, c='k', marker='o', label='Long')
+            if len(self.short_pids) > 0:
+                sframe = frame.ix[frame.index.isin(self.short_pids)]
+                ax.scatter(sframe.index, sframe.ret, c='r', marker='o', label='Short')
+
+        # set some boundaries
+        AxesFormat().Y.percent().apply()
+        ax.set_xlim(0, frame.index.max() + 3)
+        ax.set_xlabel('pid')
+        ax.set_ylabel('return')
+        ax.legend(loc='upper left')
+        return ax
+
+    def plot_ret_range(self, ax=None, ls=0, dur=0):
+        """Plot the return range for each position
+
+        :param ax: Axes
+        """
+        import matplotlib.pyplot as plt
+        from tia.util.mplot import AxesFormat
+
+        if ax is None:
+            ax = plt.gca()
+
+        frame = self.frame
+        pids = frame.index
+
+        if not ls:
+            s = frame.duration + 20 if dur else 20
+            ax.scatter(frame.index, frame.ret, s=s, c='k', marker='o', label='All')
+            ax.vlines(pids, frame.ret_min, frame.ret_max)
+        else:
+            if len(self.long_pids) > 0:
+                lframe = frame.ix[frame.index.isin(self.long_pids)]
+                s = lframe.duration + 20 if dur else 20
+                ax.scatter(lframe.index, lframe.ret, s=s, c='k', marker='o', label='Long')
+                ax.vlines(lframe.index, lframe.ret_min, lframe.ret_max)
+            if len(self.short_pids) > 0:
+                sframe = frame.ix[frame.index.isin(self.short_pids)]
+                s = sframe.duration + 20 if dur else 20
+                ax.scatter(sframe.index, sframe.ret, s=s, c='r', marker='o', label='Short')
+                ax.vlines(sframe.index, sframe.ret_min, sframe.ret_max)
+
+        AxesFormat().Y.percent().apply()
+        ax.axhline(color='k', linestyle='--')
+        ax.set_xlim(0, frame.index.max() + 3)
+        ax.set_xlabel('pid')
+        ax.set_ylabel('return')
+        ax.legend(loc='upper left')
+        return ax
 
 
 class PositionsStats(object):
@@ -198,16 +279,21 @@ class PositionsStats(object):
     @lazy_property
     def consecutive_frame(self):
         """Return a DataFrame with columns cnt, pids, pl. cnt is the number of pids in the sequence. pl is the pl sum"""
-        vals = (self._frame[PC.RET] >= 0).astype(int)
-        seq = (vals.shift(1) != vals).astype(int).cumsum()
-        def _do_apply(sub):
-            return pd.Series({
-                'pids': sub.index.values,
-                'pl': sub[PC.PL].sum(),
-                'cnt': len(sub.index),
-                'is_win': sub[PC.RET].iloc[0] >= 0,
-            })
-        return self._frame.groupby(seq).apply(_do_apply)
+        if self._frame.empty:
+            return pd.DataFrame(columns=['pids', 'pl', 'cnt', 'is_win'])
+        else:
+            vals = (self._frame[PC.RET] >= 0).astype(int)
+            seq = (vals.shift(1) != vals).astype(int).cumsum()
+
+            def _do_apply(sub):
+                return pd.Series({
+                    'pids': sub.index.values,
+                    'pl': sub[PC.PL].sum(),
+                    'cnt': len(sub.index),
+                    'is_win': sub[PC.RET].iloc[0] >= 0,
+                })
+
+            return self._frame.groupby(seq).apply(_do_apply)
 
     @property
     def consecutive_win_frame(self):
@@ -245,6 +331,7 @@ class PositionsStats(object):
 
     def _repr_html_(self):
         from tia.util.fmt import new_dynamic_formatter
+
         fmt = new_dynamic_formatter(method='row', precision=2, pcts=1, trunc_dot_zeros=1, parens=1)
         return fmt(self.series.to_frame())._repr_html_()
 

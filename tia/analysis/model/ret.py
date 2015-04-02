@@ -5,10 +5,16 @@ import pandas as pd
 from tia.util.decorator import lazy_property
 from tia.analysis.model.interface import PlColumns as PL
 from tia.analysis.perf import drawdown_info, drawdowns, returns_cumulative, sharpe_annualized, sharpe, std_annualized, \
-    returns_annualized
+    returns_annualized, sortino_ratio
+from tia.util.mplot import AxesFormat
+from tia.util.fmt import PercentFormatter
+
+
+__all__ = ['RoiiRetCalculator', 'SimpleRetCalculator', 'RetStats', 'Rets']
 
 
 def return_on_initial_capital(capital, period_pl):
+    """Return the daily return series based on the capital"""
     if capital <= 0:
         raise ValueError('cost must be a positive number not %s' % capital)
     eod = capital + period_pl.cumsum()
@@ -18,40 +24,59 @@ def return_on_initial_capital(capital, period_pl):
     return dly_rets
 
 
+class RetCalculator(object):
+    def compute(self, txns):
+        raise NotImplementedError()
+
+
+class RoiiRetCalculator(RetCalculator):
+    def compute(self, txns):
+        txnpl = txns.pl.dly_txn_frame
+        dly_txn_rets = pd.Series(0, index=txnpl.index, name='ret')
+        for pid, pframe in txnpl[[PL.OPEN_VAL, PL.PID, PL.PL]].groupby(PL.PID):
+            if pid != 0:
+                cost = abs(pframe[PL.OPEN_VAL].iloc[0])
+                ppl = pframe[PL.PL]
+                dly_txn_rets[ppl.index] = return_on_initial_capital(cost, ppl)
+
+        # Convert to daily series
+        return TxnRets.from_dly_txn(txns, dly_txn_rets)
+
+
+class SimpleRetCalculator(RetCalculator):
+    def __init__(self, cash_start):
+        """
+        :param cash_start: starting cash balance
+        """
+        self.cash_start = cash_start
+
+    def compute(self, txns):
+        txnpl = txns.pl.dly_txn
+        dly_txn_rets = return_on_initial_capital(self.cash_start, txnpl)
+        dly_txn_rets.name = 'ret'
+        return TxnRets.from_dly_txn(txns, dly_txn_rets)
+
+
 class Rets(object):
-    def __init__(self):
-        self._txns = None
+    def __init__(self, ltd=None, dly=None):
+        if dly is None and ltd is None:
+            raise ValueError('dly or ltd must be specified')
 
-    @property
-    def txns(self):
-        return self._txns
+        if dly is None:
+            if ltd.empty:
+                dly = ltd.copy()
+            else:
+                dly = (1. + ltd).pct_change()
+                dly.iloc[0] = ltd.iloc[0]
 
-    @txns.setter
-    def txns(self, val):
-        if self._txns is not None and self._txns != val:
-            raise Exception('txns can only be assigned once to a return object')
-        self._txns = val
-        # remove any cached items
-        # for attr in ['_ltd_txn', '_dly_txn', '_ltd', '_dly']:
-        # if hasattr(self, attr):
-        # delattr(self, attr)
+        if ltd is None:
+            if dly.empty:
+                ltd = dly.empty
+            else:
+                ltd = (1. + dly).cumprod() - 1.
 
-    @lazy_property
-    def ltd_txn(self):
-        return (1. + self.dly_txn).cumprod() - 1.
-
-    @lazy_property
-    def ltd(self):
-        rets = self.ltd_txn
-        rets.index = self.txns.pl.ltd_txn_frame[PL.DT]
-        return rets.groupby(lambda x: x).apply(lambda x: x[-1])
-
-    @lazy_property
-    def dly(self):
-        ltd = self.ltd
-        dly = (1. + ltd).pct_change()
-        dly.iloc[0] = ltd.iloc[0]
-        return dly
+        self.dly = dly
+        self.ltd = ltd
 
     weekly = lazy_property(lambda self: (1. + self.dly).resample('W', how='prod') - 1., 'weekly')
     monthly = lazy_property(lambda self: (1. + self.dly).resample('M', how='prod') - 1., 'monthly')
@@ -68,49 +93,19 @@ class Rets(object):
     annual_stats = property(lambda self: self.new_stats(self.annual, 'annual'), 'annual_stats')
 
 
-class RoiiRets(Rets):
-    def __init__(self):
-        Rets.__init__(self)
+class TxnRets(Rets):
+    @staticmethod
+    def from_dly_txn(txns, dly_txn_rets):
+        ltd_txn_rets = (1. + dly_txn_rets).cumprod() - 1.
+        tmp = ltd_txn_rets.copy()
+        tmp.index = txns.pl.ltd_txn_frame[PL.DT]
+        ltd_rets = tmp.groupby(lambda x: x).apply(lambda x: x[-1])
+        return TxnRets(ltd_txn_rets, dly_txn_rets, ltd_rets, None)
 
-    @lazy_property
-    def dly_txn(self):
-        txnpl = self.txns.pl.dly_txn_frame
-        rets = pd.Series(0, index=txnpl.index, name='ret')
-        for pid, pframe in txnpl[[PL.OPEN_VAL, PL.PID, PL.PL]].groupby(PL.PID):
-            if pid != 0:
-                cost = abs(pframe[PL.OPEN_VAL].iloc[0])
-                ppl = pframe[PL.PL]
-                rets[ppl.index] = return_on_initial_capital(cost, ppl)
-        return rets
-
-    def subset(self, sub_txns):
-        # TODO - think about reusing dly_txn
-        rr = RoiiRets()
-        rr.txns = sub_txns
-        return rr
-
-
-class SimpleRets(Rets):
-    def __init__(self, cash_start):
-        """
-        :param txns:
-        :param cash_start: starting cash balance
-        """
-        Rets.__init__(self)
-        self.cash_start = cash_start
-
-    @lazy_property
-    def dly_txn(self):
-        txnpl = self.txns.pl.dly_txn
-        rets = return_on_initial_capital(self.cash_start, txnpl)
-        rets.name = 'ret'
-        return rets
-
-    def subset(self, sub_txns):
-        # TODO - think about reusing dly_txn
-        rets = SimpleRets(self.cash_start)
-        rets.txns = sub_txns
-        return rets
+    def __init__(self, ltd_txn, dly_txn, ltd, dly):
+        self.ltd_txn = ltd_txn
+        self.dly_txn = dly_txn
+        Rets.__init__(self, ltd=ltd, dly=dly)
 
 
 class RetStats(object):
@@ -136,6 +131,7 @@ class RetStats(object):
     std_ann = lazy_property(lambda self: std_annualized(self.rets), 'std_ann')
     sharpe = lazy_property(lambda self: sharpe(self.rets), 'sharpe')
     sharpe_ann = lazy_property(lambda self: sharpe_annualized(self.rets), 'sharpe_ann')
+    sortino = lazy_property(lambda self: sortino_ratio(self.rets), 'sortino')
     maxdd = lazy_property(lambda self: self.drawdown_info['maxdd'].min(), 'maxdd')
     maxdd_dt = lazy_property(lambda self: None if self.drawdown_info.empty else self.drawdown_info['maxdd dt'].ix[
         self.drawdown_info['maxdd'].idxmin()], 'maxdd_dt')
@@ -151,6 +147,7 @@ class RetStats(object):
         d['std'] = self.std
         d['std ann'] = self.std_ann
         d['sharpe ann'] = self.sharpe_ann
+        d['sortino'] = self.sortino
         d['maxdd'] = self.maxdd
         d['maxdd dt'] = self.maxdd_dt
         d['dd avg'] = self.dd_avg
@@ -163,7 +160,30 @@ class RetStats(object):
         fmt = new_dynamic_formatter(method='row', precision=2, pcts=1, trunc_dot_zeros=1, parens=1)
         return fmt(self.series.to_frame())._repr_html_()
 
+    def plot_ltd(self, ax=None, style='k', label='ltd', show_dd=1, title=None, legend=1):
+        ltd = returns_cumulative(self.rets, expanding=1)
+        ax = ltd.plot(ax=ax, style=style, label=label)
+        if show_dd:
+            dd = self.drawdowns
+            dd.plot(style='r', label='drawdowns', alpha=.5)
+            ax.fill_between(dd.index, 0, dd.values, facecolor='red', alpha=.25)
+            fmt = PercentFormatter
 
+            AxesFormat().Y.percent().apply(ax)
+            legend and ax.legend(loc='upper left', prop={'size': 12})
+
+            # show the actualy date and value
+            mdt, mdd = self.maxdd_dt, self.maxdd
+            bbox_props = dict(boxstyle="round", fc="w", ec="0.5", alpha=0.25)
+            try:
+                dtstr = '{0}'.format(mdt.to_period())
+            except:
+                # assume daily
+                dtstr = '{0}'.format(hasattr(mdt, 'date') and mdt.date() or mdt)
+            ax.text(mdt, dd[mdt], "{1} \n {0}".format(fmt(mdd), dtstr).strip(), ha="center", va="top", size=8,
+                    bbox=bbox_props)
+        title and ax.set_title(title)
+        return ax
 
 
 

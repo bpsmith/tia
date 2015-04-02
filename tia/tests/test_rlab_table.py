@@ -1,4 +1,5 @@
 import unittest
+
 import pandas as pd
 import pandas.util.testing as pdtest
 
@@ -71,11 +72,21 @@ class TestTable(unittest.TestCase):
     def test_detect_spans(self):
         tf = tbl.TableFormatter(self.mdf1)
         tf.header.detect_colspans()
-        self.assertEquals(['SPAN', (2,0), (3,0)], tf.style_cmds[0])
-        self.assertEquals(['SPAN', (4,0), (5,0)], tf.style_cmds[1])
+        self.assertEquals(['SPAN', (2, 0), (3, 0)], tf.style_cmds[0])
+        self.assertEquals(['SPAN', (4, 0), (5, 0)], tf.style_cmds[1])
 
         tf = tbl.TableFormatter(self.mdf1.T)
         tf.index.detect_rowspans()
-        self.assertEquals(['SPAN', (0,2), (0,3)], tf.style_cmds[0])
-        self.assertEquals(['SPAN', (0,4), (0,5)], tf.style_cmds[1])
+        self.assertEquals(['SPAN', (0, 2), (0, 3)], tf.style_cmds[0])
+        self.assertEquals(['SPAN', (0, 4), (0, 5)], tf.style_cmds[1])
+
+    def test_match(self):
+        tf = tbl.TableFormatter(self.mdf1)
+        vcopy = tf.formatted_values.copy()
+        tf.cells.match_column_labels(['A']).percent_format(precision=1)
+        vcopy.iloc[2, 4] = '55.0% '  # padded for neg
+        vcopy.iloc[3, 4] = '65.0% '
+        vcopy.iloc[2, 2] = '55.0% '
+        vcopy.iloc[3, 2] = '65.0% '
+        pdtest.assert_frame_equal(vcopy, tf.formatted_values)
 

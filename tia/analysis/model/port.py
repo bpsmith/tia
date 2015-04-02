@@ -5,7 +5,7 @@ import pandas as pd
 from tia.analysis.plots import plot_return_on_dollar
 from tia.analysis.model.interface import CostCalculator, EodMarketData, PositionColumns as PC
 from tia.analysis.model.pos import Positions
-from tia.analysis.model.ret import RoiiRets
+from tia.analysis.model.ret import RoiiRetCalculator
 from tia.analysis.model.txn import Txns
 from tia.util.decorator import lazy_property
 
@@ -57,31 +57,22 @@ class PortfolioPricer(CostCalculator, EodMarketData):
 
 
 class SingleAssetPortfolio(object):
-    def __init__(self, pricer, trades, rets_calc=None):
+    def __init__(self, pricer, trades, ret_calc=None):
         """
         :param pricer: PortfolioPricer
         :param trades: list of Trade objects
         """
         self.trades = tuple(trades)
         self.pricer = pricer
-        self.rets_calc = rets_calc or RoiiRets()
+        self.ret_calc = ret_calc or RoiiRetCalculator()
+
+    txns = lazy_property(lambda self: Txns(self.trades, self.pricer, self.ret_calc), 'txns')
+    positions = lazy_property(lambda self: Positions(self.txns), 'positions')
 
     def clear_cache(self):
         for attr in ['_txns', '_positions', '_long', '_short']:
             if hasattr(self, attr):
                 delattr(self, attr)
-
-    @lazy_property
-    def txns(self):
-        """Return the Txns object for this portfolio"""
-        txns = Txns(self.trades, self.pricer)
-        txns.rets = self.rets_calc
-        return txns
-
-    @lazy_property
-    def positions(self):
-        """Return Positions object"""
-        return Positions(self.txns)
 
     # Direct access to the series
     ltd_pl = property(lambda self: self.txns.pl.ltd)
@@ -115,7 +106,8 @@ class SingleAssetPortfolio(object):
 
     position_frame = property(lambda self: self.positions.frame)
 
-    def plot_ret_on_dollar(self, freq='M', title=None, show_maxdd=1, figsize=None, ax=None, append=0, label=None):
+    def plot_ret_on_dollar(self, freq='M', title=None, show_maxdd=1, figsize=None, ax=None, append=0, label=None,
+                           **plot_args):
         freq = freq.lower()
         if freq == 'a':
             rets = self.annual_rets
@@ -128,7 +120,7 @@ class SingleAssetPortfolio(object):
         else:
             rets = self.dly_rets.asfreq('B')
         plot_return_on_dollar(rets, title=title, show_maxdd=show_maxdd, figsize=figsize, ax=ax, append=append,
-                              label=label)
+                              label=label, **plot_args)
 
     def subset(self, pids):
         txns = self.txns
@@ -138,7 +130,7 @@ class SingleAssetPortfolio(object):
         else:
             # TODO: rethink logic - maybe split trades (l/s) in Portfolio constructor as now
             # passing split trades back to portfolio subset
-            port = SingleAssetPortfolio(self.pricer, stxns.trades)
+            port = SingleAssetPortfolio(self.pricer, stxns.trades, ret_calc=self.ret_calc)
             port._txns = stxns
             if hasattr(self, '_positions'):
                 port._positions = self.positions.subset(stxns)
@@ -155,12 +147,11 @@ class SingleAssetPortfolio(object):
     winner = property(lambda self: PortfolioSubset.winners(self))
     loser = property(lambda self: PortfolioSubset.losers(self))
 
-    @staticmethod
-    def buy_and_hold(ins, qty=1., start=None, end=None, which='close', rets_calc=None):
-        """Construct a portfolio which opens a position with size qty at start (or first instrument price date) and
-        continues to the specified end date.
+    def buy_and_hold(self, qty=1., start=None, end=None, start_px=None, end_px=None):
+        """Construct a portfolio which opens a position with size qty at start (or first data in pricer) and
+        continues to the specified end date. It uses the end of day market prices defined by the pricer
+        (or prices supplied)
 
-        :param ins: Instrument
         :param qty:
         :param start: datetime
         :param end: datetime
@@ -169,21 +160,28 @@ class SingleAssetPortfolio(object):
         :return: SingleAssetPortfolio
         """
         from tia.analysis.model.trd import TradeBlotter
-        start = start and pd.to_datetime(start) or ins.pxs.frame.index[0]
-        end = end and pd.to_datetime(end) or ins.pxs.frame.index[-1]
-        if start != ins.pxs.frame.index[0] or end != ins.pxs.frame.index[-1]:
-            ins = ins.truncate(start, end)
 
-        start_px = ins.pxs.frame[which].iloc[0]
-        end_px = ins.pxs.frame.close.iloc[-1]
+        pricer = self.pricer
+        eod = pricer.get_eod_frame().close
+        eod_start, eod_end = eod.index[0], eod.index[-1]
+
+        start = start and pd.to_datetime(start) or eod_start
+        end = end and pd.to_datetime(end) or eod_end
+
+        if start != eod_start or end != eod_end:
+            pricer = pricer.truncate(start, end)
+
+        start_px = start_px or eod[start]
+        end_px = end_px or eod[end]
 
         blotter = TradeBlotter()
-        blotter.ts = ins.pxs.frame.index[0]
+        blotter.ts = start
         blotter.open(qty, start_px)
-        blotter.ts = ins.pxs.frame.index[-1]
+        blotter.ts = end
         blotter.close(end_px)
         trds = blotter.trades
-        return SingleAssetPortfolio(ins, trds, rets_calc=rets_calc)
+        return SingleAssetPortfolio(pricer, trds, ret_calc=self.ret_calc)
+
 
 class PortfolioSubset(object):
     @staticmethod
@@ -275,7 +273,13 @@ class PortfolioSummary(object):
                             v.index = idx
                             results.append(v)
 
-        _iter_all_lvls(0, [], port)
+        if lvls == 0:
+            res = analyze_fct(port)
+            if isinstance(res, pd.Series):
+                res = res.to_frame().T
+            results.append(res)
+        else:
+            _iter_all_lvls(0, [], port)
         return pd.concat(results)
 
     def add_iter_fct(self, siter):
@@ -284,7 +288,8 @@ class PortfolioSummary(object):
 
     def include_win_loss(self, total=1):
         def _split_port(port):
-            if total: yield self.total_key, port
+            if total:
+                yield self.total_key, port
             yield 'Winner', PortfolioSubset.winners(port)
             yield 'Loser', PortfolioSubset.losers(port)
 
@@ -293,7 +298,8 @@ class PortfolioSummary(object):
 
     def include_long_short(self, total=1):
         def _split_port(port):
-            if total: yield self.total_key, port
+            if total:
+                yield self.total_key, port
             yield 'Long', port.long
             yield 'Short', port.short
 
@@ -311,6 +317,7 @@ class PortfolioSummary(object):
         data[('port', 'mret avg ann')] = mstats.ret_avg_ann
         data[('port', 'mret std ann')] = mstats.std_ann
         data[('port', 'sharpe ann')] = mstats.sharpe_ann
+        data[('port', 'sortino')] = mstats.sortino
         data[('port', 'maxdd')] = dstats.maxdd
         data[('port', 'maxdd dt')] = dstats.maxdd_dt
         data[('port', 'avg dd')] = dstats.dd_avg

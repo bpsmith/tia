@@ -3,7 +3,7 @@ import pandas as pd
 from tia.util.decorator import lazy_property
 from tia.analysis.model.interface import TxnColumns as TC
 from tia.analysis.model.pl import Pl
-from tia.analysis.model.ret import RoiiRets
+from tia.analysis.model.ret import RoiiRetCalculator
 from tia.analysis.util import is_decrease, is_increase, crosses_zero
 
 
@@ -46,7 +46,7 @@ def iter_txns(trds):
             # Split to make accounting for long/short possible
             closing_trd, opening_trd = trd.split(-pos)
             # setattr(closing_trd, '_txn_id', 1)
-            #setattr(opening_trd, '_txn_id', 2)
+            # setattr(opening_trd, '_txn_id', 2)
             yield closing_trd
             pos = opening_trd.qty
             yield opening_trd
@@ -56,7 +56,7 @@ def iter_txns(trds):
 
 
 class Txns(object):
-    def __init__(self, trades, pricer):
+    def __init__(self, trades, pricer, ret_calc=None):
         """
         #TODO - rethink if user should split trades prior to calling this method...
         :param trades: list of Trade objects
@@ -65,26 +65,11 @@ class Txns(object):
         # split into l/s positions
         self.trades = tuple(iter_txns(trades))
         self.pricer = pricer
-        self._rets = None
-
-
-    @property
-    def rets(self):
-        if self._rets is None:
-            self._rets = rets = RoiiRets()
-            rets.txns = self
-        return self._rets
-
-    @rets.setter
-    def rets(self, rets):
-        self._rets = rets
-        rets.txns = self
+        self.ret_calc = ret_calc or RoiiRetCalculator()
 
     pids = property(lambda self: self.frame[TC.PID].unique())
-
-    @lazy_property
-    def pl(self):
-        return Pl(self)
+    pl = lazy_property(lambda self: Pl(self), 'pl')
+    rets = lazy_property(lambda self: self.ret_calc.compute(self), 'rets')
 
     @lazy_property
     def frame(self):
@@ -149,8 +134,7 @@ class Txns(object):
             # 1 to 1 mapping of txn to row (so can figure out trades from mask)
             trds = tuple(pd.Series(self.trades)[pmask.values])
             # build the object
-            result = Txns(trds, self.pricer)
-            result._rets = self.rets.subset(result)
+            result = Txns(trds, self.pricer, self.ret_calc)
             result._frame = self.frame.ix[pmask]
             if hasattr(self, '_pl'):
                 pl = self.pl
