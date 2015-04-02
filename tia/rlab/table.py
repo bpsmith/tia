@@ -189,8 +189,8 @@ class Style(object):
            'Dark': HexColor('#c0504d')}
 
     Lime = {'Light': HexColor('#ebf1de'),
-             'Medium': HexColor('#c4d79b'),
-             'Dark': HexColor('#9bbb59')}
+            'Medium': HexColor('#c4d79b'),
+            'Dark': HexColor('#9bbb59')}
 
     Purple = {'Light': HexColor('#e4dfec'),
               'Medium': HexColor('#b1a0c7'),
@@ -551,6 +551,15 @@ class RegionFormatter(object):
         """Determine the most appropriate formatter by inspected all the region values"""
         fct = fmt.guess_formatter(self.actual_values, **fmt_args)
         return self.apply_number_format(fct, rb=rb, align=align)
+
+    def guess_format(self, rb=1, align=1, **fmt_args):
+        from tia.util.fmt import NumberFormat
+
+        fct = fmt.guess_formatter(self.actual_values, **fmt_args)
+        if isinstance(fmt, NumberFormat):
+            return self.apply_number_format(fct, rb=rb, align=align)
+        else:
+            return self.apply_format(fct)
 
     def dynamic_number_format(self, rb=1, align=1, **fmt_args):
         """Formatter changes based on the cell value"""
