@@ -68,7 +68,7 @@ ThousandDollarsFormatter = pad_positive_wrapper(fmt.new_thousands_formatter(pref
 MillionDollarsFormatter = pad_positive_wrapper(fmt.new_millions_formatter(prefix='$', nan='-'))
 BillionDollarsFormatter = pad_positive_wrapper(fmt.new_billions_formatter(prefix='$', nan='-'))
 YmdFormatter = fmt.new_datetime_formatter('%Y%m%d', True)
-Y_m_dFormatter = fmt.new_datetime_formatter('%Y_%m_%d', True)
+Y_m_dFormatter = fmt.new_datetime_formatter('%Y-%m-%d', True)
 mdYFormatter = fmt.new_datetime_formatter('%m/%d/%Y', True)
 
 
@@ -95,7 +95,11 @@ def find_locations(index, match_value_or_fct, levels=None, max_matches=0):
     matches = []
     fct = match_value_or_fct
     if not callable(fct):
-        fct = lambda v: v == match_value_or_fct
+        match_value = match_value_or_fct
+        if not isinstance(match_value, basestring) and hasattr(match_value, '__iter__'):
+            fct = lambda v: v in match_value
+        else:
+            fct = lambda v: v == match_value_or_fct
 
     for lvl, loc, val in level_iter(index, levels):
         if fct(val):
