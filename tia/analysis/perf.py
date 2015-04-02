@@ -328,73 +328,59 @@ def sharpe_annualized(returns, rfr=0, scale=None, expanding=False, geometric=Fal
     return (retsann - rfr) / stdann
 
 
-def downside_deviation(returns, mar=0, full=1, expanding=0):
+def downside_deviation(rets, mar=0, expanding=0, full=0, ann=0):
+    """Compute the downside deviation for the specifed return series
+    downside_deviation
+    :param rets: periodic return series
+    :param mar: minimum acceptable rate of return (MAR)
+    :param full: If True, use the lenght of full series. If False, use only values below MAR
+    :param expanding:
+    :param ann: True if result should be annualized
     """
-    Compute the downside risk. This is the risk of all returns below the mar value. If
-    exclude is 0, then do not include returns above mar, else set them to 0.
-    returns: periodic return stream
-    mar: minimum acceptable return
-    full: if true, use the entire series, else use the subset below mar
-    http://en.wikipedia.org/wiki/Downside_risk
-    """
-    if isinstance(returns, pd.Series):
-        below = returns[returns < mar]
-        if expanding:
-            n = pd.expanding_count(returns) if full else pd.expanding_count(below)
-            ssum = ((below - mar) ** 2).cumsum()
-            return ((ssum / n) ** (.5)).reindex(returns.index).fillna(method='ffill')
-        else:
-            n = returns.count() if full else below.count()
-            ssum = ((below - mar) ** 2).sum()
-            return np.sqrt(ssum / n)
-    else:
-        vals = {c: downside_deviation(returns[c], mar=mar, full=full, expanding=expanding) for c in returns.columns}
-        if expanding:
-            return pd.DataFrame(vals, columns=returns.columns)
-        else:
-            return pd.Series(vals)
-
-
-def sortino_ratio(returns, mar=0, full=1, expanding=0, ann=1):
-    """
-    returns: periodic return stream
-    mar: minimum acceptable return
-    full: if true, use the entire series, else use the subset below mar
-    expanding: bool
-    """
-    factor = ann and periodicity(returns) or 1.
+    below = rets[rets < mar]
     if expanding:
-        avgexcess = pd.expanding_mean(excess_returns(returns, mar))
-        avgexcess *= (ann and factor or 1.)
-        downside = downside_deviation(returns, mar, full, expanding=1)
-        downside *= (ann and np.sqrt(factor) or 1.)
-        return avgexcess / downside
+        n = pd.expanding_count(rets)[below.index] if full else pd.expanding_count(below)
+        dd = np.sqrt(((below - mar) ** 2).cumsum() / n)
+        if ann:
+            dd *= np.sqrt(periods_in_year(rets))
+        return dd.reindex(rets.index).ffill()
     else:
-        avgexcess = excess_returns(returns, mar).mean()
-        avgexcess *= (ann and factor or 1.)
-        downside = downside_deviation(returns, mar, full)
-        downside *= (ann and np.sqrt(factor) or 1.)
-        return avgexcess / downside
+        n = rets.count() if full else below.count()
+        dd = np.sqrt(((below - mar) **2).sum() / n)
+        if ann:
+            dd *= np.sqrt(periods_in_year(rets))
+        return dd
 
 
-def information_ratio(returns, bm, scale=None, expanding=0):
+def sortino_ratio(rets, rfr_ann=0, mar=0, full=0, expanding=0):
+    """Compute the sortino ratio as (Ann Rets - Risk Free Rate) / Downside Deviation Ann
+
+    :param rets: period return series
+    :param rfr_ann: annualized risk free rate
+    :param mar: minimum acceptable rate of return (MAR)
+    :param full: If True, use the lenght of full series. If False, use only values below MAR
+    :param expanding:
+    :return:
     """
-    returns: periodic returns (not annualized)
-    bm: benchmark periodic returns (not annualized)
-    expanding: bool
+    annrets = returns_annualized(rets, expanding=expanding) - rfr_ann
+    return annrets / downside_deviation(rets, mar=mar, expanding=expanding, full=full, ann=1)
+
+
+def information_ratio(rets, bm_rets, scale=None, expanding=0):
+    """Information ratio, a common measure of manager efficiency, evaluates excess returns over a benchmark
+    versus tracking error.
+
+    :param rets: period returns
+    :param bm_rets: periodic benchmark returns (not annualized)
+    :param scale: None or the scale to be used for annualization
+    :param expanding:
+    :return:
     """
-    scale = _resolve_periods_in_year(scale, returns)
-    if expanding:
-        # Align the returns
-        bm = bm.reindex_like(returns, method='pad')
-        active_premium = returns_annualized(returns, scale=scale, expanding=1) - returns_annualized(bm, scale=scale,
-                                                                                                    expanding=1)
-        tracking_error = std_annualized(excess_returns(returns, bm), scale=scale, expanding=1)
-        return active_premium / tracking_error
-    else:
-        active_premium = returns_annualized(returns, scale=scale) - returns_annualized(bm, scale=scale)
-        tracking_error = std_annualized(excess_returns(returns, bm), scale=scale)
-        return active_premium / tracking_error
+    scale = _resolve_periods_in_year(scale, rets)
+    rets_ann = returns_annualized(rets, scale=scale, expanding=expanding)
+    bm_rets_ann = returns_annualized(rets, scale=scale, expanding=expanding)
+    tracking_error_ann = std_annualized((rets - bm_rets), scale=scale, expanding=expanding)
+    return (rets_ann - bm_rets_ann) / tracking_error_ann
 
 
 def upside_potential_ratio(returns, mar=0, full=0, expanding=0):
