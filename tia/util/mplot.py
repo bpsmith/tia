@@ -122,7 +122,7 @@ class AxesFormat(DeferredExecutionMixin):
 
 
 class FigureHelper(object):
-    def __init__(self, basedir=None, ext='.pdf'):
+    def __init__(self, basedir=None, ext='.pdf', dpi=None):
         if not basedir:
             import tempfile
 
@@ -135,6 +135,7 @@ class FigureHelper(object):
         self.ax = None
         self.axiter = None
         self.figure = None
+        self.dpi = dpi or 100
 
     def keys(self):
         return self.fnmap.keys()
@@ -146,7 +147,7 @@ class FigureHelper(object):
     def __getitem__(self, item):
         return self.fnmap[item]
 
-    def savefig(self, fn=None, dpi=100, clear=1, ext=None, key=None):
+    def savefig(self, fn=None, dpi=None, clear=1, ext=None, key=None):
         ext = ext or self.ext
         ext = ext.startswith('.') and ext or '.' + ext
         fn = fn or uuid.uuid1()
@@ -154,7 +155,7 @@ class FigureHelper(object):
         fn = '%s%s%s' % (key, fn, ext)
         fn = os.path.join(self.basedir, fn)
         figure = self.figure or plt.gcf()
-        figure.savefig(fn, dpi=dpi)
+        figure.savefig(fn, dpi=dpi or self.dpi)
         if clear:
             figure.clf()
         if key:
