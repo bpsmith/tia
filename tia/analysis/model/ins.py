@@ -6,7 +6,7 @@ from tia.analysis.perf import periods_in_year
 from tia.analysis.model.interface import CostCalculator, EodMarketData
 
 
-__all__ = ['InstrumentPrices', 'Instrument', 'load_yahoo_stock', 'load_bbg_stock']
+__all__ = ['InstrumentPrices', 'Instrument', 'load_yahoo_stock', 'load_bbg_stock', 'load_bbg_future']
 
 
 class InstrumentPrices(object):
@@ -15,7 +15,8 @@ class InstrumentPrices(object):
         self.frame = frame
 
     def _ensure_ohlc(self, frame):
-        missing = pd.Index(['open', 'high', 'low', 'close']).difference(frame.columns)
+        # missing = pd.Index(['open', 'high', 'low', 'close']).difference(frame.columns)
+        missing = pd.Index(['open', 'high', 'low', 'close']) - frame.columns
         if len(missing) != 0:
             raise ValueError('price frame missing expected columns: {0}'.format(','.join([m for m in missing])))
 
@@ -124,7 +125,6 @@ class Instruments(object):
         return pd.concat(kvals.values(), axis=1, keys=kvals.keys())
 
 
-
 def get_dividends_yahoo(sid, start, end):
     # Taken from get_data_yahoo in Pandas library and adjust a single parameter to get dividends
     from pandas.compat import StringIO, bytes_to_str
@@ -166,7 +166,8 @@ def load_yahoo_stock(sids, start=None, end=None, dvds=True):
             d.columns = ['dvds']
             if not d.empty:
                 # sanity check - not expected currently
-                missing = d.index.difference(data.index)
+                # missing = d.index.difference(data.index)
+                missing = d.index - data.index
                 if len(missing) > 0:
                     raise Exception('dividends occur on non-business day, not expecting this')
                 # another sanity check to ensure yahoo rolls dividends up, in case a special occurs on same day
@@ -179,14 +180,27 @@ def load_yahoo_stock(sids, start=None, end=None, dvds=True):
         return Instrument(sid, pxs, multiplier=1.)
 
 
-def load_bbg_stock(sid_or_accessor, start=None, end=None, dvds=True, terminal=None):
+def _resolve_accessor(sid_or_accessor):
+    if isinstance(sid_or_accessor, basestring):
+        from tia.bbg import BbgDataManager
+
+        mgr = BbgDataManager()
+        return mgr.get_sid_accessor(sid_or_accessor)
+    else:
+        from tia.bbg import SidAccessor
+
+        if not isinstance(sid_or_accessor, SidAccessor):
+            raise ValueError('sid_or_accessor must be either a string or SidAccessor not %s' % type(sid_or_accessor))
+        return sid_or_accessor
+
+
+def load_bbg_stock(sid_or_accessor, start=None, end=None, dvds=True):
     """terminal and datamgr are mutually exclusive.
 
     :param sid_or_accessor: security identifier or SidAccessor from DataManager
     :param start:
     :param end:
     :param dvds:
-    :param terminal: None or the bloomberg terminal object if just sid is passed
     :return:
     """
     end = end and pd.to_datetime(end) or pd.datetime.now()
@@ -195,23 +209,10 @@ def load_bbg_stock(sid_or_accessor, start=None, end=None, dvds=True, terminal=No
     FLDS = ['PX_OPEN', 'PX_HIGH', 'PX_LOW', 'PX_LAST']
     DVD_FLD = 'DVD_HIST_ALL'
     RENAME = {'PX_OPEN': 'open', 'PX_HIGH': 'high', 'PX_LOW': 'low', 'PX_LAST': 'close'}
-    if isinstance(sid_or_accessor, basestring):
-        # If just the identifier is passed in then use terminal retrieve the data
-        if terminal is None:
-            from tia.bbg import LocalTerminal
 
-            terminal = LocalTerminal
-
-        pxframe = terminal.get_historical(sid_or_accessor, FLDS, start=start, end=end).as_frame()
-        pxframe = pxframe[sid_or_accessor].rename(columns=RENAME)
-        dvdframe = terminal.get_reference_data(sid_or_accessor, DVD_FLD, ignore_field_error=1).as_frame().iloc[0][0]
-    else:
-        if not hasattr(sid_or_accessor, 'get_historical'):
-            raise ValueError('sid_or_accessor must define get_historical if it is not a sid')
-
-        accessor = sid_or_accessor
-        pxframe = accessor.get_historical(FLDS, start=start, end=end).rename(columns=RENAME)
-        dvdframe = accessor.get_attributes(DVD_FLD, ignore_field_error=1)
+    accessor = _resolve_accessor(sid_or_accessor)
+    pxframe = accessor.get_historical(FLDS, start=start, end=end).rename(columns=RENAME)
+    dvdframe = accessor.get_attributes(DVD_FLD, ignore_field_error=1)
 
     if isinstance(dvdframe, pd.DataFrame):
         dvdframe = dvdframe[['Ex-Date', 'Dividend Amount']].rename(
@@ -219,7 +220,8 @@ def load_bbg_stock(sid_or_accessor, start=None, end=None, dvds=True, terminal=No
         dvdframe = dvdframe.set_index('date').sort_index()
         dvdframe = dvdframe.truncate(start, end)
         # sanity check - not expected currently
-        missing = dvdframe.index.difference(pxframe.index)
+        # missing = dvdframe.index.difference(pxframe.index)
+        missing = dvdframe.index - pxframe.index
         if len(missing) > 0:
             missing_dates = ','.join([m.strftime('%Y-%m-%d') for m in missing])
             raise Exception('dividends occur on non-business day, not expecting this. %s' % missing_dates)
@@ -230,3 +232,27 @@ def load_bbg_stock(sid_or_accessor, start=None, end=None, dvds=True, terminal=No
     pxs = InstrumentPrices(pxframe)
     return Instrument(sid_or_accessor, pxs, multiplier=1.)
 
+
+def load_bbg_future(sid_or_accessor, start=None, end=None):
+    """terminal and datamgr are mutually exclusive.
+
+    :param sid_or_accessor: security identifier or SidAccessor from DataManager
+    :param start:
+    :param end:
+    :return:
+    """
+    end = end and pd.to_datetime(end) or pd.datetime.now()
+    start = start and pd.to_datetime(start) or end + pd.datetools.relativedelta(years=-1)
+
+    FLDS = ['PX_OPEN', 'PX_HIGH', 'PX_LOW', 'PX_LAST']
+    RENAME = {'PX_OPEN': 'open', 'PX_HIGH': 'high', 'PX_LOW': 'low', 'PX_LAST': 'close'}
+    accessor = _resolve_accessor(sid_or_accessor)
+    pxframe = accessor.get_historical(FLDS, start=start, end=end).rename(columns=RENAME)
+    pxs = InstrumentPrices(pxframe)
+    mult = 1.
+    try:
+        mult = float(accessor.FUT_VAL_PT)
+    except:
+        pass
+
+    return Instrument(sid_or_accessor, pxs, multiplier=mult)
