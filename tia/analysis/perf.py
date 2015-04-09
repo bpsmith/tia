@@ -321,16 +321,15 @@ def sharpe(returns, rfr=0, expanding=0):
         return excess_returns(returns, rfr).mean() / returns.std()
 
 
-def sharpe_annualized(returns, rfr=0, scale=None, expanding=False, geometric=False):
+def sharpe_annualized(returns, rfr_ann=0, scale=None, expanding=False, geometric=False):
     scale = _resolve_periods_in_year(scale, returns)
     stdann = std_annualized(returns, scale=scale, expanding=expanding)
     retsann = returns_annualized(returns, scale=scale, expanding=expanding, geometric=geometric)
-    return (retsann - rfr) / stdann
+    return (retsann - rfr_ann) / stdann
 
 
 def downside_deviation(rets, mar=0, expanding=0, full=0, ann=0):
     """Compute the downside deviation for the specifed return series
-    downside_deviation
     :param rets: periodic return series
     :param mar: minimum acceptable rate of return (MAR)
     :param full: If True, use the lenght of full series. If False, use only values below MAR
@@ -366,7 +365,7 @@ def sortino_ratio(rets, rfr_ann=0, mar=0, full=0, expanding=0):
     return annrets / downside_deviation(rets, mar=mar, expanding=expanding, full=full, ann=1)
 
 
-def information_ratio(rets, bm_rets, scale=None, expanding=0):
+def information_ratio(rets, bm_rets, scale=None, expanding=False):
     """Information ratio, a common measure of manager efficiency, evaluates excess returns over a benchmark
     versus tracking error.
 
@@ -383,24 +382,24 @@ def information_ratio(rets, bm_rets, scale=None, expanding=0):
     return (rets_ann - bm_rets_ann) / tracking_error_ann
 
 
-def upside_potential_ratio(returns, mar=0, full=0, expanding=0):
-    if isinstance(returns, pd.Series):
-        above = returns[returns > mar]
+def upside_potential_ratio(rets, mar=0, full=0, expanding=0):
+    if isinstance(rets, pd.Series):
+        above = rets[rets > mar]
         excess = -mar + above
         if expanding:
-            n = pd.expanding_count(returns) if full else pd.expanding_count(above)
+            n = pd.expanding_count(rets) if full else pd.expanding_count(above)
             upside = excess.cumsum() / n
-            downside = downside_deviation(returns, mar=mar, full=full, expanding=1)
-            return (upside / downside).reindex(returns.index).fillna(method='ffill')
+            downside = downside_deviation(rets, mar=mar, full=full, expanding=1)
+            return (upside / downside).reindex(rets.index).fillna(method='ffill')
         else:
-            n = returns.count() if full else above.count()
+            n = rets.count() if full else above.count()
             upside = excess.sum() / n
-            downside = downside_deviation(returns, mar=mar, full=full)
+            downside = downside_deviation(rets, mar=mar, full=full)
             return upside / downside
     else:
-        vals = {c: upside_potential_ratio(returns[c], mar=mar, full=full, expanding=expanding) for c in returns.columns}
+        vals = {c: upside_potential_ratio(rets[c], mar=mar, full=full, expanding=expanding) for c in rets.columns}
         if expanding:
-            return pd.DataFrame(vals, columns=returns.columns)
+            return pd.DataFrame(vals, columns=rets.columns)
         else:
             return pd.Series(vals)
 

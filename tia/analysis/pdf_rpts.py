@@ -126,6 +126,7 @@ class ShortTermReport(object):
         self.pdf = pdf = rlab.PdfBuilder(self.path, coverpage=cp)
         # Setup stylesheet
         tb = ParagraphStyle('TitleBar', parent=pdf.stylesheet['Normal'], fontName='Helvetica-Bold', fontSize=10,
+
                     leading=10, alignment=TA_CENTER)
         'TitleBar' not in pdf.stylesheet and pdf.stylesheet.add(tb)
         # define templates
