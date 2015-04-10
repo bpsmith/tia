@@ -2,22 +2,28 @@
 import math
 
 import pandas as pd
+import pandas.lib as lib
 import numpy as np
 
+pd_is_datetime_arraylike = None
 try:
-    from pandas.core.common import is_datetime_arraylike
+    from pandas.core.common import is_datetime_arraylike as pd_is_datetime_arraylike
 except:
-    import pandas.lib as lib
-    from pandas.core.common import ABCSeries
-
-    def is_datetime_arraylike(arr):
-        """ return if we are datetime arraylike / DatetimeIndex """
-        if isinstance(arr, pd.DatetimeIndex):
-            return True
-        inferred = lib.infer_dtype(arr)
-        return 'datetime' in inferred
+    pass
 
 from functools import partial
+
+
+def is_datetime_arraylike(arr):
+    if isinstance(arr, pd.DataFrame):
+        return arr.apply(pd_is_datetime_arraylike).all()
+    elif pd_is_datetime_arraylike is not None:
+        return pd_is_datetime_arraylike(arr)
+    elif isinstance(arr, pd.DatetimeIndex):
+        return True
+    else:
+        inferred = lib.infer_dtype(arr)
+        return 'datetime' in inferred
 
 
 class DateTimeFormat(object):
@@ -247,7 +253,7 @@ def guess_formatter(values, precision=1, commas=True, parens=True, nan='nan', pr
                     return new_float_formatter(**formatter_args)
     except:
         # import sys
-        #e = sys.exc_info()[0]
+        # e = sys.exc_info()[0]
         return lambda x: x
 
 
