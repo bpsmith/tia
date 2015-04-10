@@ -60,7 +60,7 @@ ThousandsFormatter = pad_positive_wrapper(fmt.new_thousands_formatter(nan='-'))
 MillionsFormatter = pad_positive_wrapper(fmt.new_millions_formatter(nan='-'))
 BillionsFormatter = pad_positive_wrapper(fmt.new_billions_formatter(nan='-'))
 # Don't attempt to pad
-DynamicNumberFormatter = fmt.DynamicNumberFormat(nan='-', pcts=1, trunc_dot_zeros=1)
+DynamicNumberFormatter = fmt.DynamicNumberFormat(method='col', nan='-', pcts=1, trunc_dot_zeros=1)
 
 DollarCentsFormatter = pad_positive_wrapper(fmt.new_float_formatter(prefix='$', nan='-'))
 DollarFormatter = pad_positive_wrapper(fmt.new_int_formatter(prefix='$', nan='-'))
