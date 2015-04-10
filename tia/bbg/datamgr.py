@@ -10,7 +10,8 @@ from tia.bbg import LocalTerminal
 import tia.util.log as log
 
 
-__all__ = ['DataManager', 'BbgDataManager', 'MemoryStorage', 'HDFStorage', 'CachedDataManager', 'Storage']
+__all__ = ['DataManager', 'BbgDataManager', 'MemoryStorage', 'HDFStorage', 'CachedDataManager', 'Storage',
+           'CacheOnlyDataManager']
 
 _force_array = lambda x: isinstance(x, basestring) and [x] or x
 
@@ -266,13 +267,48 @@ class HDFStorage(Storage):
                     store.close()
 
 
+class CacheMissError(Exception):
+    """Raised when cache lookup fails and there is no fallback"""
+
+
+class CacheOnlyDataManager(DataManager):
+    def get_attributes(self, sids, flds, **overrides):
+        sids = _force_array(sids)
+        flds = _force_array(flds)
+        sstr = ','.join(sids)
+        fstr = ','.join(flds)
+        ostr = ''
+        if overrides:
+            ostr = ', overrides=' + ','.join(['{0}={1}'.format(str(k), str(v)) for k, v in overrides.iteritems()])
+        msg = 'Reference data for sids={0}, flds={1}{2}'.format(sstr, fstr, ostr)
+        raise CacheMissError(msg)
+
+    def get_historical(self, sids, flds, start, end, period=None):
+        sids = _force_array(sids)
+        flds = _force_array(flds)
+        sstr = ','.join(sids)
+        fstr = ','.join(flds)
+        msg = 'Historical data for sids={0}, flds={1}, start={2}, end={3}, period={4}'.format(sstr, fstr, start, end,
+                                                                                              period)
+        raise CacheMissError(msg)
+
+
 class CachedDataManager(DataManager):
     def __init__(self, dm, storage, ts=None):
+        """
+        :param dm: DataManager, if not available in cache then use dm to request data
+        :param storage: Storage for the cached data
+        :param ts:
+        """
         DataManager.__init__(self)
         self.dm = dm
         self.storage = storage
         self.ts = ts or pd.datetime.now()
         self.logger = log.instance_logger('cachemgr', self)
+
+    @staticmethod
+    def no_fallback(storage, ts=None):
+        return CachedDataManager(CacheOnlyDataManager(), storage, ts)
 
     @property
     def sid_result_mode(self):
@@ -410,3 +446,7 @@ class CachedDataManager(DataManager):
             if is_fld_str:
                 result.columns = result.columns.droplevel(1)
             return result
+
+
+
+
