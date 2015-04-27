@@ -2,11 +2,11 @@ from collections import OrderedDict
 
 import pandas as pd
 
-from tia.analysis.plots import plot_return_on_dollar
 from tia.analysis.model.interface import CostCalculator, EodMarketData, PositionColumns as PC
 from tia.analysis.model.pos import Positions
 from tia.analysis.model.ret import RoiiRetCalculator
 from tia.analysis.model.txn import Txns
+from tia.analysis.util import insert_level
 from tia.util.decorator import lazy_property
 
 
@@ -68,59 +68,20 @@ class SingleAssetPortfolio(object):
 
     txns = lazy_property(lambda self: Txns(self.trades, self.pricer, self.ret_calc), 'txns')
     positions = lazy_property(lambda self: Positions(self.txns), 'positions')
+    pl = property(lambda self: self.txns.pl)
+    performance = property(lambda self: self.txns.performance)
+
+    # --------------------------------------------------
+    # direct access to common attributes
+    dly_pl = property(lambda self: self.pl.dly)
+    monthly_pl = property(lambda self: self.pl.monthly)
+    dly_rets = property(lambda self: self.performance.dly)
+    monthly_rets = property(lambda self: self.performance.monthly)
 
     def clear_cache(self):
         for attr in ['_txns', '_positions', '_long', '_short']:
             if hasattr(self, attr):
                 delattr(self, attr)
-
-    # Direct access to the series
-    ltd_pl = property(lambda self: self.txns.pl.ltd)
-    weekly_pl = property(lambda self: self.txns.pl.weekly)
-    monthly_pl = property(lambda self: self.txns.pl.monthly)
-    quarterly_pl = property(lambda self: self.txns.pl.quarterly)
-    annual_pl = property(lambda self: self.txns.pl.annual)
-    dly_pl = property(lambda self: self.txns.pl.dly)
-    ltd_rets = property(lambda self: self.txns.rets.ltd)
-    weekly_rets = property(lambda self: self.txns.rets.weekly)
-    monthly_rets = property(lambda self: self.txns.rets.monthly)
-    quarterly_rets = property(lambda self: self.txns.rets.quarterly)
-    annual_rets = property(lambda self: self.txns.rets.annual)
-    dly_rets = property(lambda self: self.txns.rets.dly)
-    # direct access to details
-    ltd_txn_pl_frame = property(lambda self: self.txns.pl.ltd_txn_frame)
-    dly_txn_pl_frame = property(lambda self: self.txns.pl.dly_txn_frame)
-    ltd_pl_frame = property(lambda self: self.txns.pl.ltd_frame)
-    dly_pl_frame = property(lambda self: self.txns.pl.dly_frame)
-    # direct access to stats
-    weekly_ret_stats = property(lambda self: self.txns.rets.weekly_stats)
-    monthly_ret_stats = property(lambda self: self.txns.rets.monthly_stats)
-    quarterly_ret_stats = property(lambda self: self.txns.rets.quarterly_stats)
-    annual_ret_stats = property(lambda self: self.txns.rets.annual_stats)
-    dly_ret_stats = property(lambda self: self.txns.rets.dly_stats)
-    weekly_pl_stats = property(lambda self: self.txns.pl.weekly_stats)
-    monthly_pl_stats = property(lambda self: self.txns.pl.monthly_stats)
-    quarterly_pl_stats = property(lambda self: self.txns.pl.quarterly_stats)
-    annual_pl_stats = property(lambda self: self.txns.pl.annual_stats)
-    dly_pl_stats = property(lambda self: self.txns.pl.dly_stats)
-
-    position_frame = property(lambda self: self.positions.frame)
-
-    def plot_ret_on_dollar(self, freq='M', title=None, show_maxdd=1, figsize=None, ax=None, append=0, label=None,
-                           **plot_args):
-        freq = freq.lower()
-        if freq == 'a':
-            rets = self.annual_rets
-        elif freq == 'q':
-            rets = self.quarterly_rets
-        elif freq == 'm':
-            rets = self.monthly_rets
-        elif freq == 'w':
-            rets = self.weekly_rets
-        else:
-            rets = self.dly_rets.asfreq('B')
-        plot_return_on_dollar(rets, title=title, show_maxdd=show_maxdd, figsize=figsize, ax=ax, append=append,
-                              label=label, **plot_args)
 
     def subset(self, pids):
         txns = self.txns
@@ -147,7 +108,7 @@ class SingleAssetPortfolio(object):
     winner = property(lambda self: PortfolioSubset.winners(self))
     loser = property(lambda self: PortfolioSubset.losers(self))
 
-    def buy_and_hold(self, qty=1., start=None, end=None, start_px=None, end_px=None):
+    def buy_and_hold(self, qty=1., start_dt=None, end_dt=None, start_px=None, end_px=None):
         """Construct a portfolio which opens a position with size qty at start (or first data in pricer) and
         continues to the specified end date. It uses the end of day market prices defined by the pricer
         (or prices supplied)
@@ -161,23 +122,18 @@ class SingleAssetPortfolio(object):
         """
         from tia.analysis.model.trd import TradeBlotter
 
-        pricer = self.pricer
-        eod = pricer.get_eod_frame().close
-        eod_start, eod_end = eod.index[0], eod.index[-1]
+        eod = self.pricer.get_eod_frame().close
 
-        start = start and pd.to_datetime(start) or eod_start
-        end = end and pd.to_datetime(end) or eod_end
+        start_dt = start_dt and pd.to_datetime(start_dt) or eod.index[0]
+        start_px = start_px or eod.asof(start_dt)
+        end_dt = end_dt and pd.to_datetime(end_dt) or eod.index[-1]
+        end_px = end_px or eod.asof(end_dt)
 
-        if start != eod_start or end != eod_end:
-            pricer = pricer.truncate(start, end)
-
-        start_px = start_px or eod[start]
-        end_px = end_px or eod[end]
-
+        pricer = self.pricer.trunace(start_dt, end_dt)
         blotter = TradeBlotter()
-        blotter.ts = start
+        blotter.ts = start_dt
         blotter.open(qty, start_px)
-        blotter.ts = end
+        blotter.ts = end_dt
         blotter.close(end_px)
         trds = blotter.trades
         return SingleAssetPortfolio(pricer, trds, ret_calc=self.ret_calc)
@@ -240,20 +196,24 @@ class PortfolioSummary(object):
         self.total_key = 'All'
         self.iter_fcts = []
 
-    def __call__(self, port, analyze_fct):
-        """
-        analyze_fct: fct(port) which can return Series, or map of key to Series. If key to series, then
+    def __call__(self, port, analyze_fct=None):
+        """  analyze_fct: fct(port) which can return Series, or map of key to Series. If key to series, then
         the key is used as an additional index value.
+
+        :param port: Portfolio or dict of key->Portfolio
+        :param analyze_fct:
+        :return:
         """
-        results = []
         iter_fcts = self.iter_fcts
         lvls = len(iter_fcts)
 
-        def _iter_all_lvls(lvl, keys, parent):
+        analyze_fct = self.analyze_returns if analyze_fct is None else analyze_fct
+
+        def _iter_all_lvls(lvl, keys, parent, results):
             if lvl < (lvls - 1):
                 # exhaust combinations
                 for key, child in iter_fcts[lvl](parent):
-                    _iter_all_lvls(lvl + 1, keys + [key], child)
+                    _iter_all_lvls(lvl + 1, keys + [key], child, results)
             else:
                 # at the bottom
                 for key, child in iter_fcts[lvl](parent):
@@ -274,13 +234,37 @@ class PortfolioSummary(object):
                             results.append(v)
 
         if lvls == 0:
-            res = analyze_fct(port)
-            if isinstance(res, pd.Series):
-                res = res.to_frame().T
-            results.append(res)
+            def _get_res(p):
+                res = analyze_fct(p)
+                return res.to_frame().T if isinstance(res, pd.Series) else res
+
+            if hasattr(port, 'iteritems'):
+                pieces = []
+                for k, p in port.iteritems():
+                    res = _get_res(p)
+                    defidx = res.index.nlevels == 1 and (res.index == 0).all()
+                    res = insert_level(res, k, axis=1, level_name='lvl1')
+                    if defidx:
+                        res.index = res.index.droplevel(1)
+                    pieces.append(res)
+                return pd.concat(pieces)
+            else:
+                return _get_res(port)
         else:
-            _iter_all_lvls(0, [], port)
-        return pd.concat(results)
+            if hasattr(port, 'iteritems'):
+                pieces = []
+                for k, p in port.iteritems():
+                    results = []
+                    _iter_all_lvls(0, [], p, results)
+                    tmp = pd.concat(results)
+                    tmp.index.names = ['lvl%s' % (i + 2) for i in range(len(tmp.index.names))]
+                    tmp = insert_level(tmp, k, level_name='lvl1', axis=1)
+                    pieces.append(tmp)
+                return pd.concat(pieces)
+            else:
+                results = []
+                _iter_all_lvls(0, [], port, results)
+                return pd.concat(results)
 
     def add_iter_fct(self, siter):
         self.iter_fcts.append(siter)
@@ -290,8 +274,8 @@ class PortfolioSummary(object):
         def _split_port(port):
             if total:
                 yield self.total_key, port
-            yield 'Winner', PortfolioSubset.winners(port)
-            yield 'Loser', PortfolioSubset.losers(port)
+            yield 'winner', PortfolioSubset.winners(port)
+            yield 'loser', PortfolioSubset.losers(port)
 
         self.add_iter_fct(_split_port)
         return self
@@ -300,28 +284,28 @@ class PortfolioSummary(object):
         def _split_port(port):
             if total:
                 yield self.total_key, port
-            yield 'Long', port.long
-            yield 'Short', port.short
+            yield 'long', port.long
+            yield 'short', port.short
 
         self.add_iter_fct(_split_port)
         return self
 
     @staticmethod
     def analyze_returns(port):
-        mstats = port.monthly_ret_stats
-        dstats = port.dly_ret_stats
+        monthly = port.performance.monthly_details
+        dly = port.performance.dly_details
         stats = port.positions.stats
         data = OrderedDict()
-        data[('port', 'cagr')] = mstats.total_ann
-        data[('port', 'mret avg')] = mstats.ret_avg
-        data[('port', 'mret avg ann')] = mstats.ret_avg_ann
-        data[('port', 'mret std ann')] = mstats.std_ann
-        data[('port', 'sharpe ann')] = mstats.sharpe_ann
-        data[('port', 'sortino')] = mstats.sortino
-        data[('port', 'maxdd')] = dstats.maxdd
-        data[('port', 'maxdd dt')] = dstats.maxdd_dt
-        data[('port', 'avg dd')] = dstats.dd_avg
-        data[('port', 'nmonths')] = mstats.cnt
+        data[('port', 'ltd ann')] = monthly.ltd_ann
+        data[('port', 'mret avg')] = monthly.mean
+        data[('port', 'mret avg ann')] = monthly.mean_ann
+        data[('port', 'mret std ann')] = monthly.std_ann
+        data[('port', 'sharpe ann')] = monthly.sharpe_ann
+        data[('port', 'sortino')] = monthly.sortino
+        data[('port', 'maxdd')] = dly.maxdd
+        data[('port', 'maxdd dt')] = dly.maxdd_dt
+        data[('port', 'avg dd')] = dly.dd_avg
+        data[('port', 'nmonths')] = monthly.cnt
         # pos data
         data[('pos', 'cnt')] = stats.cnt
         data[('pos', 'win cnt')] = stats.win_cnt
@@ -337,20 +321,20 @@ class PortfolioSummary(object):
 
     @staticmethod
     def analyze_pl(port):
-        mstats = port.monthly_pl_stats
-        dstats = port.dly_pl_stats
+        monthly = port.pl.monthly_details
+        dstats = port.pl.dly_details
         stats = port.positions.stats
         data = OrderedDict()
-        data[('port', 'ltd')] = mstats.pl.sum()
-        data[('port', 'mpl avg')] = mstats.avg
-        data[('port', 'mpl std')] = mstats.std
-        data[('port', 'mpl std ann')] = mstats.std_ann
-        data[('port', 'mpl max')] = mstats.pl.max()
-        data[('port', 'mpl min')] = mstats.pl.min()
+        data[('port', 'ltd')] = monthly.ltd_frame.pl.iloc[-1]
+        data[('port', 'mpl avg')] = monthly.mean
+        data[('port', 'mpl std')] = monthly.std
+        data[('port', 'mpl std ann')] = monthly.std_ann
+        data[('port', 'mpl max')] = monthly.frame.pl.max()
+        data[('port', 'mpl min')] = monthly.frame.pl.min()
         data[('port', 'maxdd')] = dstats.maxdd
         data[('port', 'maxdd dt')] = dstats.maxdd_dt
         data[('port', 'avg dd')] = dstats.dd_avg
-        data[('port', 'nmonths')] = mstats.cnt
+        data[('port', 'nmonths')] = monthly.cnt
         # pos data
         data[('pos', 'cnt')] = stats.cnt
         data[('pos', 'win cnt')] = stats.win_cnt
@@ -361,9 +345,3 @@ class PortfolioSummary(object):
         data[('pos', 'pl min')] = stats.pl_min
         data[('pos', 'pl max')] = stats.pl_max
         return pd.Series(data, index=pd.MultiIndex.from_tuples(data.keys()))
-
-
-
-
-
-
