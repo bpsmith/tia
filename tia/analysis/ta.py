@@ -287,7 +287,7 @@ class Signal(object):
         if qtys is None:
             qtyfct = lambda ts: 1.
         elif isinstance(qtys, pd.Series):
-            qtys = qtys.reindex(index, method='ffill').bfill(1)
+            qtys = qtys.reindex(index, method='ffill').bfill()
             qtyfct = lambda ts: qtys[ts]
         elif callable(qtys):
             qtyfct = qtys

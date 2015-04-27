@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 
-from tia.analysis.perf import returns_cumulative, max_drawdown
+from tia.analysis.perf import returns_cumulative, max_drawdown, guess_freq
 from tia.util.mplot import AxesFormat
 from tia.util.fmt import new_float_formatter
 
@@ -18,6 +18,10 @@ def plot_return_on_dollar(rets, title='Return on $1', show_maxdd=0, figsize=None
             if fi != 0:
                 tmp.ix[fi - 1, c] = 1.
             else:
+                if not s.index.freq:
+                    # no frequency set
+                    freq = guess_freq(s.index)
+                    s = s.asfreq(freq)
                 first = s.index.shift(-1)[0]
                 tmp = pd.concat([pd.DataFrame({c: [1.]}, index=[first]), tmp])
         crets = tmp
@@ -31,7 +35,10 @@ def plot_return_on_dollar(rets, title='Return on $1', show_maxdd=0, figsize=None
             crets = crets.copy()
             crets.iloc[fi - 1] = 1.
         else:
-            first = crets.index.shift(-1)[0]
+            if not crets.index.freq:
+                first = crets.asfreq(guess_freq(crets.index)).index.shift(-1)[0]
+            else:
+                first = crets.index.shift(-1)[0]
             tmp = pd.Series([1.], index=[first])
             tmp = tmp.append(crets)
             crets = tmp

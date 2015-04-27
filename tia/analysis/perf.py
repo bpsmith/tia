@@ -29,29 +29,36 @@ PER_YEAR_MAP = {
 
 
 def guess_freq(index):
-    # admittedly weak way of doing this...
+    # admittedly weak way of doing this...This needs to be abolished
     if isinstance(index, (pd.Series, pd.DataFrame)):
         index = index.index
-    if len(index) < 7:
-        raise Exception('cannot guess frequency with less than 7 items')
-    diff = min([t2 - t1 for t1, t2, in zip(index[-7:-1], index[-6:])])
-    if diff.days == 1:
-        if 5 in index.dayofweek or 6 in index.dayofweek:
-            return 'D'
-        else:
-            return 'B'
-    elif diff.days == 7:
-        return 'W'
-    else:
-        diff = min([t2.month - t1.month for t1, t2, in zip(index[-7:-1], index[-6:])])
-        if diff == 1:
-            return 'M'
-        diff = min([t2.year - t1.year for t1, t2, in zip(index[-7:-1], index[-6:])])
-        if diff == 1:
-            return 'Y'
 
-        strs = ','.join([i.strftime('%Y-%m-%d') for i in index[-7:]])
-        raise Exception('unable to determine frequency, last 7 dates %s' % strs)
+    if hasattr(index, 'freqstr') and index.freqstr:
+        return index.freqstr[0]
+    elif len(index) < 3:
+        raise Exception('cannot guess frequency with less than 7 items')
+    else:
+        lb = min(7, len(index))
+        idx_zip = lambda: zip(index[-lb:-1], index[-(lb-1):])
+
+        diff = min([t2 - t1 for t1, t2, in idx_zip()])
+        if diff.days == 1:
+            if 5 in index.dayofweek or 6 in index.dayofweek:
+                return 'D'
+            else:
+                return 'B'
+        elif diff.days == 7:
+            return 'W'
+        else:
+            diff = min([t2.month - t1.month for t1, t2, in idx_zip()])
+            if diff == 1:
+                return 'M'
+            diff = min([t2.year - t1.year for t1, t2, in idx_zip()])
+            if diff == 1:
+                return 'A'
+
+            strs = ','.join([i.strftime('%Y-%m-%d') for i in index[-lb:]])
+            raise Exception('unable to determine frequency, last %s dates %s' % (lb, strs))
 
 
 def periodicity(freq_or_frame):
@@ -262,7 +269,7 @@ def max_drawdown(returns=None, geometric=True, dd=None, inc_date=False):
     else:
         mddidx = dd.idxmin()
         # if mddidx == dd.index[0]:
-        #    # no maxff
+        # # no maxff
         #    return 0 if not inc_date else (0, None)
         #else:
         sub = dd[:mddidx]
@@ -287,7 +294,8 @@ def drawdown_info(returns, geometric=True):
     dd.columns = ['vals']
     dd['nonzero'] = (dd.vals != 0).astype(int)
     dd['gid'] = (dd.nonzero.shift(1) != dd.nonzero).astype(int).cumsum()
-    ixs = dd.reset_index().groupby(['nonzero', 'gid'])['index'].apply(lambda x: np.array(x))
+    idxname = dd.index.name or 'index'
+    ixs = dd.reset_index().groupby(['nonzero', 'gid'])[idxname].apply(lambda x: np.array(x))
     rows = []
     if 1 in ixs:
         for ix in ixs[1]:
@@ -345,7 +353,7 @@ def downside_deviation(rets, mar=0, expanding=0, full=0, ann=0):
         return dd.reindex(rets.index).ffill()
     else:
         n = rets.count() if full else below.count()
-        dd = np.sqrt(((below - mar) **2).sum() / n)
+        dd = np.sqrt(((below - mar) ** 2).sum() / n)
         if ann:
             dd *= np.sqrt(periods_in_year(rets))
         return dd
@@ -402,6 +410,40 @@ def upside_potential_ratio(rets, mar=0, full=0, expanding=0):
             return pd.DataFrame(vals, columns=rets.columns)
         else:
             return pd.Series(vals)
+
+
+@per_series()
+def rolling_percentileofscore(series, window, min_periods=None):
+    """Computue the score percentile for the specified window."""
+    import scipy.stats as stats
+
+    def _percentile(arr):
+        score = arr[-1]
+        vals = arr[:-1]
+        return stats.percentileofscore(vals, score)
+
+    notnull = series.dropna()
+    min_periods = min_periods or window
+    if notnull.empty:
+        return pd.Series(np.nan, index=series.index)
+    else:
+        return pd.rolling_apply(notnull, window, _percentile, min_periods=min_periods).reindex(series.index)
+
+
+@per_series()
+def expanding_percentileofscore(series, min_periods=None):
+    import scipy.stats as stats
+
+    def _percentile(arr):
+        score = arr[-1]
+        vals = arr[:-1]
+        return stats.percentileofscore(vals, score)
+
+    notnull = series.dropna()
+    if notnull.empty:
+        return pd.Series(np.nan, index=series.index)
+    else:
+        return pd.expanding_apply(notnull, _percentile, min_periods=min_periods).reindex(series.index)
 
 
 def hurst_exponent(px, lags=range(2, 100)):

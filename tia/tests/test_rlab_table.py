@@ -90,3 +90,33 @@ class TestTable(unittest.TestCase):
         vcopy.iloc[3, 2] = '65.0% '
         pdtest.assert_frame_equal(vcopy, tf.formatted_values)
 
+    def test_period_index(self):
+        df = pd.DataFrame({'x': [1., 2.], 'y': [3., 4.]}, index=pd.date_range('1/1/2015', freq='M', periods=2).to_period())
+        tf = tbl.TableFormatter(df)
+        # expected values
+        vcopy = tf.formatted_values.copy()
+        vcopy.iloc[1, 1] = '1 '
+        vcopy.iloc[2, 1] = '2 '
+        vcopy.iloc[1, 2] = '3 '
+        vcopy.iloc[2, 2] = '4 '
+        vcopy.iloc[1, 0] = '01/2015'
+        vcopy.iloc[2, 0] = '02/2015'
+        # buld the format
+        tf.cells.int_format()
+        tf.index.apply_format(lambda x: x.strftime('%m/%Y'))
+        pdtest.assert_frame_equal(vcopy, tf.formatted_values)
+        # Test when it is the columns
+        dfT = df.T
+        tfT = tbl.TableFormatter(dfT)
+        vcopy = tfT.formatted_values.copy()
+        vcopy.iloc[1, 1] = '1 '
+        vcopy.iloc[1, 2] = '2 '
+        vcopy.iloc[2, 1] = '3 '
+        vcopy.iloc[2, 2] = '4 '
+        vcopy.iloc[0, 1] = '01/2015'
+        vcopy.iloc[0, 2] = '02/2015'
+        # buld the format
+        tfT.cells.int_format()
+        tfT.header.apply_format(lambda x: x.strftime('%m/%Y'))
+        pdtest.assert_frame_equal(vcopy, tfT.formatted_values)
+

@@ -1,13 +1,13 @@
 from reportlab.platypus import BaseDocTemplate, Paragraph, Frame, PageBreak, FrameBreak, NextPageTemplate, \
     PageTemplate
 from reportlab.lib.pagesizes import letter, landscape
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle, TA_CENTER
 from reportlab.lib import units
-from reportlab.platypus.flowables import Flowable
+from reportlab.lib.colors import HexColor
+from reportlab.platypus.flowables import Flowable, HRFlowable
 from tia.rlab.table import TableFormatter
 
 import numpy as np
-
 
 __all__ = ['CoverPage', 'GridFrame', 'GridTemplate', 'PdfBuilder']
 
@@ -170,6 +170,19 @@ class PdfBuilder(object):
                 f = Frame(0, 0, self.width, self.height)
                 pt = PageTemplate(id='cover', frames=[f], onPage=coverpage.onPage)
                 self.add_page_template(pt)
+
+    def new_title_bar(self, title, color=None):
+        """Return an array of Pdf Objects which constitute a Header"""
+        # Build a title bar for top of page
+        w, t, c = '100%', 2, color or HexColor('#404040')
+        title = '<b>{0}</b>'.format(title)
+        if 'TitleBar' not in self.stylesheet:
+            tb = ParagraphStyle('TitleBar', parent=self.stylesheet['Normal'], fontName='Helvetica-Bold', fontSize=10,
+                                leading=10, alignment=TA_CENTER)
+            self.stylesheet.add(tb)
+        return [HRFlowable(width=w, thickness=t, color=c, spaceAfter=2, vAlign='MIDDLE', lineCap='square'),
+                self.new_paragraph(title, 'TitleBar'),
+                HRFlowable(width=w, thickness=t, color=c, spaceBefore=2, vAlign='MIDDLE', lineCap='square')]
 
     def new_paragraph(self, txt, style='Normal'):
         s = self.stylesheet[style]

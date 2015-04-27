@@ -600,6 +600,8 @@ class RegionFormatter(object):
                 self.iloc[ridx, cidx].apply_styles(styles)
         return self
 
+    heatmap = heat_map
+
     def set_font(self, name=None, size=None, leading=None, color=None):
         name and self.set_fontname(name)
         size and self.set_fontsize(size)

@@ -11,7 +11,7 @@ import tia.util.log as log
 
 
 __all__ = ['DataManager', 'BbgDataManager', 'MemoryStorage', 'HDFStorage', 'CachedDataManager', 'Storage',
-           'CacheOnlyDataManager']
+           'CacheOnlyDataManager', 'SidAccessor', 'MultiSidAccessor']
 
 _force_array = lambda x: isinstance(x, basestring) and [x] or x
 

@@ -42,14 +42,14 @@ class TestAnalysis(unittest.TestCase):
         pdtest.assert_series_equal(txns.txn_action, pd.Series([Action.Buy, Action.Buy, Action.Sell, Action.Sell,
                                                              Action.SellShort, Action.Cover], index=index))
         # CHECK PL
-        ltd = port.txns.pl.ltd_txn_frame
-        dly = port.txns.pl.dly_txn_frame
+        pl = port.pl
         # Load the dataset
         import tia, os
         xl = os.path.join(tia.__path__[0], 'tests', 'test_analysis.xlsx')
         expected = pd.read_excel(xl)
         expected = expected.reset_index()
-        # check ltd
+        # check ltd txn level
+        ltd = pl.ltd_txn_frame
         pdtest.assert_series_equal(expected.pos.astype(float), ltd.pos)
         pdtest.assert_series_equal(expected.ltd_pl, ltd.pl)
         pdtest.assert_series_equal(expected.ltd_upl, ltd.upl)
@@ -57,27 +57,24 @@ class TestAnalysis(unittest.TestCase):
         pdtest.assert_series_equal(expected.ltd_dvds, ltd.dvds)
         pdtest.assert_series_equal(expected.ltd_fees.astype(float), ltd.fees)
         pdtest.assert_series_equal(expected.ltd_rpl_gross, ltd.rpl_gross)
-        # check dly
-        pdtest.assert_series_equal(expected.pos.astype(float), dly.pos)
-        pdtest.assert_series_equal(expected.dly_pl, dly.pl)
-        pdtest.assert_series_equal(expected.dly_upl, dly.upl)
-        pdtest.assert_series_equal(expected.dly_rpl, dly.rpl)
-        pdtest.assert_series_equal(expected.dly_dvds, dly.dvds)
-        pdtest.assert_series_equal(expected.dly_fees.astype(float), dly.fees)
-        pdtest.assert_series_equal(expected.dly_rpl_gross, dly.rpl_gross)
+        # check txn level
+        txnlvl = pl.txn_frame
+        pdtest.assert_series_equal(expected.pos.astype(float), txnlvl.pos)
+        pdtest.assert_series_equal(expected.dly_pl, txnlvl.pl)
+        pdtest.assert_series_equal(expected.dly_upl, txnlvl.upl)
+        pdtest.assert_series_equal(expected.dly_rpl, txnlvl.rpl)
+        pdtest.assert_series_equal(expected.dly_dvds, txnlvl.dvds)
+        pdtest.assert_series_equal(expected.dly_fees.astype(float), txnlvl.fees)
+        pdtest.assert_series_equal(expected.dly_rpl_gross, txnlvl.rpl_gross)
 
         # few sanity checks on dly (non-txn level)
         for col in ['pl', 'rpl', 'upl', 'dvds', 'fees']:
-            pdtest.assert_series_equal(dly.set_index('date')[col].resample('B', how='sum', kind='period'),
-                                       port.dly_pl_frame[col].to_period('B'))
+            pdtest.assert_series_equal(pl.txn_frame.set_index('date')[col].resample('B', how='sum', kind='period'),
+                                       pl.dly_frame[col].to_period('B'))
 
         # Double check the long / short add up to the total
-        l, s = port.long.ltd_pl_frame, port.short.ltd_pl_frame
-        ls = port.ltd_pl_frame
-        pdtest.assert_frame_equal(ls, l + s)
-
-        l, s = port.long.dly_pl_frame, port.short.dly_pl_frame
-        ls = port.dly_pl_frame
+        l, s = port.long.pl.dly_frame, port.short.pl.dly_frame
+        ls = port.pl.dly_frame
         pdtest.assert_frame_equal(ls, l + s)
 
 
@@ -120,15 +117,7 @@ class TestAnalysis(unittest.TestCase):
         pdtest.assert_frame_equal(port.positions.frame.ix[1:1], port.long.positions.frame)
         pdtest.assert_frame_equal(port.positions.frame.ix[2:2], port.short.positions.frame)
         # some sanity checks
-        pdtest.assert_series_equal(port.dly_pl.cumsum(), port.ltd_pl)
-        pdtest.assert_series_equal(port.dly_pl, port.long.dly_pl + port.short.dly_pl)
-
-
-
-
-
-
-
-
-
-
+        pdtest.assert_series_equal(port.pl.dly, port.long.pl.dly + port.short.pl.dly)
+        pdtest.assert_series_equal(port.pl.ltd_dly, port.long.pl.ltd_dly + port.short.pl.ltd_dly)
+        pdtest.assert_series_equal(port.pl.monthly, port.long.pl.monthly + port.short.pl.monthly)
+        pdtest.assert_series_equal(port.pl.ltd_monthly, port.long.pl.ltd_monthly + port.short.pl.ltd_monthly)

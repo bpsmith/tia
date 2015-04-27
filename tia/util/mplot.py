@@ -84,8 +84,8 @@ class _YAxisFormat(_AxisFormat):
         rotate_labels(self.axes, which='y', rot=rot, ha=ha)
         return self
 
-    def label(self, txt):
-        self.axes.set_ylabel(txt)
+    def label(self, txt, **kwargs):
+        self.axes.set_ylabel(txt, **kwargs)
         return self
 
 
@@ -98,8 +98,8 @@ class _XAxisFormat(_AxisFormat):
         rotate_labels(self.axes, which='x', rot=rot, ha=ha)
         return self
 
-    def label(self, txt):
-        self.axes.set_xlabel(txt)
+    def label(self, txt, **kwargs):
+        self.axes.set_xlabel(txt, **kwargs)
         return self
 
 
