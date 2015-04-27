@@ -100,3 +100,25 @@ def per_level():
         return PerLevel(fct)
 
     return _pl
+
+
+def insert_level(df, label, level=0, copy=0, axis=0, level_name=None):
+    """Add a new level to the index with the specified label. The newly created index will be a MultiIndex.
+
+       :param df: DataFrame
+       :param label: label to insert
+       :param copy: If True, copy the DataFrame before assigning new index
+       :param axis: If 0, then columns. If 1, then index
+       :return:
+    """
+    df = df if not copy else df.copy()
+    src = df.columns if axis == 0 else df.index
+    current = [src.get_level_values(lvl) for lvl in range(src.nlevels)]
+    current.insert(level, [label] * len(src))
+    idx = pd.MultiIndex.from_arrays(current)
+    level_name and idx.set_names(level_name, level, inplace=1)
+    if axis == 0:
+        df.columns = idx
+    else:
+        df.index = idx
+    return df

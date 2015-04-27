@@ -10,6 +10,7 @@ from tia.analysis.model.port import PortfolioSummary
 import tia.analysis.perf as perf
 from tia.util.fmt import new_datetime_formatter
 from tia.util.mplot import AxesFormat, FigureHelper
+from tia.analysis.util import insert_level
 
 
 class _Result(object):
@@ -22,22 +23,6 @@ class _Result(object):
         self.buyhold = port.buy_and_hold(start=first)
         self.sid = sid
         self.desc = desc
-
-
-
-def add_column_header(df, hdr, copy=0):
-    """Add a header to the existing DataFrame columns to create a MultiIndex column with the first level containing
-       the specified hdr
-
-       :param df: DataFrame
-       :param hdr: header string
-       :return:
-    """
-    df = df if not copy else df.copy()
-    cvals = [df.columns.get_level_values(lvl) for lvl in range(df.columns.nlevels)]
-    cvals.insert(0, [hdr] * len(df.columns))
-    df.columns = pd.MultiIndex.from_arrays(cvals)
-    return df
 
 
 class ShortTermReport(object):
@@ -176,14 +161,14 @@ class ShortTermReport(object):
                                rs(port, buyhold, 'monthly_ret_stats'),
                                rs(port, buyhold, 'quarterly_ret_stats')]).T
 
-        tf = pdf.table_formatter(add_column_header(sframe, 'Portfolio', True))
+        tf = pdf.table_formatter(insert_level(sframe, 'Portfolio', copy=True))
         dofmt(tf)
         stable = tf.build()
 
         s = PortfolioSummary()
         s.include_long_short().include_win_loss()
         dframe = s(port, PortfolioSummary.analyze_returns).T
-        tf = pdf.table_formatter(do_rename(add_column_header(dframe.ix['port'], 'Portfolio', True)))
+        tf = pdf.table_formatter(do_rename(insert_level(dframe.ix['port'], 'Portfolio', copy=True)))
         dofmt(tf)
         dtable = tf.build()
 
@@ -269,13 +254,13 @@ class ShortTermReport(object):
         sframe = pd.DataFrame({'all': port.positions.stats.series,
                                'long': port.long.positions.stats.series,
                                'short': port.short.positions.stats.series})
-        tf = pdf.table_formatter(add_column_header(sframe, 'Position', True))
+        tf = pdf.table_formatter(insert_level(sframe, 'Position', copy=True))
         stable = dofmt(tf).build()
 
         s = PortfolioSummary()
         s.include_long_short().include_win_loss()
         dframe = s(port, PortfolioSummary.analyze_returns).T.ix['pos']
-        tf = pdf.table_formatter(do_rename(add_column_header(dframe, 'Position', True)))
+        tf = pdf.table_formatter(do_rename(insert_level(dframe, 'Position', copy=True)))
         dtable = dofmt(tf).build()
 
         # Plot Position Returns
