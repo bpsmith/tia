@@ -6,7 +6,8 @@ from tia.analysis.perf import periods_in_year
 from tia.analysis.model.interface import CostCalculator, EodMarketData
 
 
-__all__ = ['InstrumentPrices', 'Instrument', 'load_yahoo_stock', 'load_bbg_stock', 'load_bbg_future']
+__all__ = ['InstrumentPrices', 'Instrument', 'Instruments', 'load_yahoo_stock', 'load_bbg_stock', 'load_bbg_future',
+           'BloombergInstrumentLoader']
 
 
 class InstrumentPrices(object):
@@ -32,7 +33,7 @@ class InstrumentPrices(object):
         pxstart = pxend.shift(1).bfill()
         return (1. + (pxend - pxstart + self.dvds.fillna(0)) / pxstart).cumprod() - 1
 
-    def volatility(self, n, freq=None, which='close', ann=True, model='ln', min_periods=1):
+    def volatility(self, n, freq=None, which='close', ann=True, model='ln', min_periods=1, rolling='simple'):
         """Return the annualized volatility series. N is the number of lookback periods.
 
         :param n: int, number of lookback periods
@@ -43,10 +44,14 @@ class InstrumentPrices(object):
                         ln - use logarithmic price changes
                         pct - use pct price changes
                         bbg - use logarithmic price changes but Bloomberg uses actual business days
+        :param rolling:{'simple', 'exp'}, if exp, use ewmstd. if simple, use rolling_std
         :return:
         """
         if model not in ('bbg', 'ln', 'pct'):
             raise ValueError('model must be one of (bbg, ln, pct), not %s' % model)
+        if rolling not in ('simple', 'exp'):
+            raise ValueError('rolling must be one of (simple, exp), not %s' % rolling)
+
         px = self.frame[which]
         px = px if not freq else px.resample(freq, how='last')
         if model == 'bbg' and periods_in_year(px) == 252:
@@ -55,11 +60,17 @@ class InstrumentPrices(object):
             px = px.resample('B').ffill()
             chg = np.log(px / px.shift(1))
             chg[chg.index - orig] = np.nan
-            vol = pd.rolling_std(chg, n, min_periods=min_periods).reindex(orig)
+            if rolling == 'simple':
+                vol = pd.rolling_std(chg, n, min_periods=min_periods).reindex(orig)
+            else:
+                vol = pd.ewmstd(chg, span=n, min_periods=n)
             return vol if not ann else vol * np.sqrt(260)
         else:
             chg = px.pct_change() if model == 'pct' else np.log(px / px.shift(1))
-            vol = pd.rolling_std(chg, n, min_periods=min_periods)
+            if rolling == 'simple':
+                vol = pd.rolling_std(chg, n, min_periods=min_periods)
+            else:
+                vol = pd.ewmstd(chg, span=n, min_periods=n)
             return vol if not ann else vol * np.sqrt(periods_in_year(vol))
 
 
@@ -97,6 +108,40 @@ class Instrument(CostCalculator, EodMarketData):
             tpxs = self.pxs.frame.truncate(before, after)
             return Instrument(self.sid, InstrumentPrices(tpxs), multiplier=self.multiplier)
 
+    def new_buy_and_hold_port(self, qty=1., open_px='close', open_dt=None, close_px='close', close_dt=None,
+                              ret_calc=None):
+        """
+
+        :param qty: float
+        :param open_px: one of {string, float}, opening trade price. If string define open, high, low, close as source.
+        :param open_dt: opening trade date
+        :param close_px: one of {string, float}, closing trade price. If string define open, high, low, close
+        :param close_dt: closing trade date
+        :param ret_calc:
+        :return:
+        """
+        from tia.analysis.model.trd import TradeBlotter
+        from tia.analysis.model.port import SingleAssetPortfolio
+
+        getpx = lambda how, dt: how if not isinstance(how, basestring) else self.pxs.frame[how].asof(dt)
+
+        open_dt = open_dt or self.pxs.frame.index[0]
+        open_px = getpx(open_px, open_dt)
+        close_dt = close_dt or self.pxs.frame.index[-1]
+        close_px = getpx(close_px, close_dt)
+
+        pricer = self.truncate(open_dt, close_dt)
+        blotter = TradeBlotter()
+        blotter.ts = open_dt
+        blotter.open(qty, open_px)
+        blotter.ts = close_dt
+        blotter.close(close_px)
+        trds = blotter.trades
+        return SingleAssetPortfolio(pricer, trds, ret_calc=ret_calc)
+
+    def __repr__(self):
+        return '%s(%r, mult=%s)' % (self.__class__.__name__, self.sid, self.multiplier)
+
 
 class Instruments(object):
     def __init__(self, instruments=None):
@@ -116,6 +161,8 @@ class Instruments(object):
     def __getitem__(self, key):
         if isinstance(key, basestring):
             return self._instruments[key]
+        elif isinstance(key, int):
+            return self._instruments.iloc[key]
         else:
             return Instruments(self._instruments[key])
 
@@ -123,6 +170,9 @@ class Instruments(object):
     def frame(self):
         kvals = {sid: ins.pxs.frame for sid, ins in self._instruments.iteritems()}
         return pd.concat(kvals.values(), axis=1, keys=kvals.keys())
+
+    def __repr__(self):
+        return '[{0}]'.format(','.join([repr(i) for i in self._instruments]))
 
 
 def get_dividends_yahoo(sid, start, end):
@@ -211,6 +261,7 @@ def load_bbg_stock(sid_or_accessor, start=None, end=None, dvds=True):
     RENAME = {'PX_OPEN': 'open', 'PX_HIGH': 'high', 'PX_LOW': 'low', 'PX_LAST': 'close'}
 
     accessor = _resolve_accessor(sid_or_accessor)
+    sid = accessor.sid
     pxframe = accessor.get_historical(FLDS, start=start, end=end).rename(columns=RENAME)
     dvdframe = accessor.get_attributes(DVD_FLD, ignore_field_error=1)
 
@@ -230,7 +281,7 @@ def load_bbg_stock(sid_or_accessor, start=None, end=None, dvds=True):
             dvdframe = dvdframe.groupby(lambda x: x).sum()
         pxframe = pxframe.join(dvdframe)
     pxs = InstrumentPrices(pxframe)
-    return Instrument(sid_or_accessor, pxs, multiplier=1.)
+    return Instrument(sid, pxs, multiplier=1.)
 
 
 def load_bbg_future(sid_or_accessor, start=None, end=None):
@@ -247,6 +298,7 @@ def load_bbg_future(sid_or_accessor, start=None, end=None):
     FLDS = ['PX_OPEN', 'PX_HIGH', 'PX_LOW', 'PX_LAST']
     RENAME = {'PX_OPEN': 'open', 'PX_HIGH': 'high', 'PX_LOW': 'low', 'PX_LAST': 'close'}
     accessor = _resolve_accessor(sid_or_accessor)
+    sid = accessor.sid
     pxframe = accessor.get_historical(FLDS, start=start, end=end).rename(columns=RENAME)
     pxs = InstrumentPrices(pxframe)
     mult = 1.
@@ -255,4 +307,31 @@ def load_bbg_future(sid_or_accessor, start=None, end=None):
     except:
         pass
 
-    return Instrument(sid_or_accessor, pxs, multiplier=mult)
+    return Instrument(sid, pxs, multiplier=mult)
+
+
+class BloombergInstrumentLoader(object):
+    StockTypes = ['Common Stock', 'Mutual Fund', 'Depositary Receipt', 'REIT', 'Partnership Shares']
+
+    def __init__(self, mgr=None, start=None, end=None):
+        from tia.bbg import BbgDataManager
+
+        self.mgr = mgr or BbgDataManager()
+        self.start = start
+        self.end = end
+
+    def load(self, sids, start=None, end=None):
+        if isinstance(sids, basestring):
+            start = start or self.start
+            end = end or self.end
+            accessor = self.mgr[sids]
+            sectype2 = accessor.SECURITY_TYP2
+            if sectype2 == 'Future':
+                return load_bbg_future(accessor, start=start, end=end)
+            elif sectype2 in self.StockTypes:
+                return load_bbg_stock(accessor, start=start, end=end)
+            else:
+                raise Exception('SECURITY_TYP2 "%s" is not mapped' % sectype2)
+        else:
+            return Instruments([self.load(sid, start, end) for sid in sids])
+
