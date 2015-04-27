@@ -1,4 +1,5 @@
-__all__ = ['CostCalculator', 'EodMarketData', 'MarketDataColumns', 'TxnColumns', 'PositionColumns', 'PlColumns']
+__all__ = ['CostCalculator', 'EodMarketData', 'MarketDataColumns', 'TxnColumns', 'PositionColumns', 'PlColumns',
+           'TxnPlColumns']
 
 
 class CostCalculator(object):
@@ -53,7 +54,31 @@ class TxnColumns(object):
     }
 
 
+
 class PlColumns(object):
+    DT = 'date'
+    DVDS = 'dvds'
+    FEES = 'fees'
+    RPL_GROSS = 'rpl_gross'
+    RPL = 'rpl'
+    UPL = 'upl'
+    PL = 'pl'
+
+    DESCRIPTIONS = {
+        DT: 'p/l date',
+        DVDS: 'dividends',
+        FEES: 'fees',
+        RPL_GROSS: 'realized gross p/l (TOT_VAL - OPEN_VAL)',
+        RPL: 'realized pl (RPL_GROSS + FEES + DVDS)',
+        UPL: 'unrealized pl (MKT_VAL + OPEN_VAL)',
+        PL: 'Total p/l (UPL + RPL)'
+    }
+
+    ALL = [DT, DVDS, FEES, RPL_GROSS, RPL, UPL, PL]
+    LTDS = [DVDS, FEES, RPL_GROSS, RPL, UPL, PL]
+
+
+class TxnPlColumns(object):
     DT = 'date'
     PID = TxnColumns.PID
     TID = TxnColumns.TID
@@ -87,12 +112,8 @@ class PlColumns(object):
         RPL_GROSS: 'realized gross p/l (TOT_VAL - OPEN_VAL)',
         RPL: 'realized pl (RPL_GROSS + FEES + DVDS)',
         UPL: 'unrealized pl (MKT_VAL + OPEN_VAL)',
-        PL: 'p/l (UPL + RPL)'
+        PL: 'Total p/l (UPL + RPL)'
     }
-
-    PL_COLUMNS = [DT, POS, OPEN_VAL, MKT_VAL, TOT_VAL, DVDS, FEES, RPL_GROSS, RPL, UPL, PL]
-    TXN_PL_COLUMNS = [DT, PID, TID, TXN_QTY, TXN_PX, TXN_FEES, TXN_PREMIUM, TXN_INTENT, TXN_ACTION, POS, CLOSE_PX,
-                      OPEN_VAL, MKT_VAL, TOT_VAL, DVDS, FEES, RPL_GROSS, RPL, UPL, PL]
 
 
 class PositionColumns(object):
