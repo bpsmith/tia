@@ -76,7 +76,7 @@ class FixedAumRetCalculator(RetCalculator):
         self.aum = aum
         self.reset_freq = reset_freq
         # capture what cash flows would be needed on reset date to reset the aum
-        self.cash_flows = None
+        self.external_cash_flows = None
 
     def compute(self, txns):
         ltd = txns.pl.ltd_txn
@@ -95,6 +95,7 @@ class FixedAumRetCalculator(RetCalculator):
             at += len(grp.index)
             # get aum back to fixed amount
             cf[key] = eod.iloc[-1] - aum
+        self.external_cash_flows = pd.Series(cf)
         crets = CumulativeRets(period_rets)
         return Performance(crets)
 

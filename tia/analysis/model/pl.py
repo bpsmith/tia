@@ -53,7 +53,7 @@ class OpenAverageProfitAndLossCalculator(object):
             ltd_frame[TPL.TXN_PREMIUM] = 0
             ltd_frame[TPL.TXN_INTENT] = 0
             ltd_frame[TPL.TXN_ACTION] = 0
-            ltd_frame[TPL.CLOSE_PX] = pl[PL.CLOSE_PX]
+            ltd_frame[TPL.CLOSE_PX] = pl[TPL.CLOSE_PX]
             ltd_frame[TPL.OPEN_VAL] = 0
             ltd_frame[TPL.MKT_VAL] = 0
             ltd_frame[TPL.TOT_VAL] = 0
@@ -312,7 +312,7 @@ class ProfitAndLossDetails(object):
             return self.drawdown_info['maxdd dt'].ix[self.drawdown_info['maxdd'].idxmin()]
 
     @lazy_property
-    def series(self):
+    def summary(self):
         d = OrderedDict()
         d['avg'] = self.avg
         d['std'] = self.std
@@ -326,7 +326,7 @@ class ProfitAndLossDetails(object):
         from tia.util.fmt import new_dynamic_formatter
 
         fmt = new_dynamic_formatter(method='row', precision=2, pcts=1, trunc_dot_zeros=1, parens=1)
-        return fmt(self.series.to_frame())._repr_html_()
+        return fmt(self.summary.to_frame())._repr_html_()
 
     def plot_ltd(self, ax=None, style='k', label='ltd', show_dd=1, guess_xlabel=1, title=True):
         ltd = self.ltd_frame.pl

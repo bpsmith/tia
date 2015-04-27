@@ -44,15 +44,6 @@ class Position(object):
         self.open_px = first[TPL.TXN_PX]
         self.close_px = last[TPL.TXN_PX]
         self.close_dt = last[TPL.DT]
-        ltd = pl.ltd_txn
-        self.pl = ltd.iloc[-1]
-        self.pl_min = ltd.min()
-        self.pl_max = ltd.max()
-
-        ltd = performance.ltd_txn
-        self.ret = ltd.iloc[-1]
-        self.ret_min = ltd.min()
-        self.ret_max = ltd.max()
         # TODO - should use a time delta and determine the number of days
         self.duration = len(pl.ltd_txn_frame[TPL.DT].drop_duplicates())
         self.ntxns = len(trades)
@@ -125,18 +116,14 @@ class Positions(object):
                 pos.open_px,
                 pos.close_px,
                 pos.open_premium,
-                pos.pl_min,
-                pos.pl_max,
-                pos.pl,
-                pos.ret,
-                pos.ret_min,
-                pos.ret_max,
+                pos.pl.ltd_txn.iloc[-1],
+                pos.performance.ltd_txn.iloc[-1],
                 pos.duration,
                 pos.ntxns,
                 pos.state
             ])
         cols = [PC.PID, PC.SIDE, PC.OPEN_DT, PC.CLOSE_DT, PC.OPEN_QTY, PC.OPEN_PX, PC.CLOSE_PX, PC.OPEN_PREMIUM, \
-                PC.PL_MIN, PC.PL_MAX, PC.PL, PC.RET, PC.RET_MIN, PC.RET_MAX, PC.DURATION, PC.NUM_TXNS, PC.STATE]
+                PC.PL, PC.RET, PC.DURATION, PC.NUM_TXNS, PC.STATE]
         f = pd.DataFrame.from_records(vals, columns=cols)
         f[PC.PID] = f[PC.PID].astype(int)
         return f.set_index(PC.PID)
@@ -195,21 +182,24 @@ class Positions(object):
         frame = self.frame
         pids = frame.index
 
+        min_rets = pd.Series([self[pid].performance.ltd_txn.min() for pid in pids], index=pids)
+        max_rets = pd.Series([self[pid].performance.ltd_txn.max() for pid in pids], index=pids)
+
         if not ls:
             s = frame.duration + 20 if dur else 20
             ax.scatter(frame.index, frame.ret, s=s, c='k', marker='o', label='All')
-            ax.vlines(pids, frame.ret_min, frame.ret_max)
+            ax.vlines(pids, min_rets, max_rets)
         else:
             if len(self.long_pids) > 0:
                 lframe = frame.ix[frame.index.isin(self.long_pids)]
                 s = lframe.duration + 20 if dur else 20
                 ax.scatter(lframe.index, lframe.ret, s=s, c='k', marker='o', label='Long')
-                ax.vlines(lframe.index, lframe.ret_min, lframe.ret_max)
+                ax.vlines(lframe.index, min_rets[lframe.index], max_rets[frame.index])
             if len(self.short_pids) > 0:
                 sframe = frame.ix[frame.index.isin(self.short_pids)]
                 s = sframe.duration + 20 if dur else 20
                 ax.scatter(sframe.index, sframe.ret, s=s, c='r', marker='o', label='Short')
-                ax.vlines(sframe.index, sframe.ret_min, sframe.ret_max)
+                ax.vlines(sframe.index, min_rets[sframe.index], max_rets[sframe.index])
 
         AxesFormat().Y.percent().apply()
         ax.axhline(color='k', linestyle='--')

@@ -36,13 +36,13 @@ def guess_freq(index):
     if hasattr(index, 'freqstr') and index.freqstr:
         return index.freqstr[0]
     elif len(index) < 3:
-        raise Exception('cannot guess frequency with less than 7 items')
+        raise Exception('cannot guess frequency with less than 3 items')
     else:
         lb = min(7, len(index))
         idx_zip = lambda: zip(index[-lb:-1], index[-(lb-1):])
 
         diff = min([t2 - t1 for t1, t2, in idx_zip()])
-        if diff.days == 1:
+        if diff.days <= 1:
             if 5 in index.dayofweek or 6 in index.dayofweek:
                 return 'D'
             else:
