@@ -3,12 +3,13 @@ from collections import OrderedDict
 import pandas as pd
 import numpy as np
 
-from tia.analysis.model.interface import TxnColumns as TC, MarketDataColumns as MC, PlColumns as PL
-from tia.analysis.perf import periods_in_year
+from tia.analysis.model.interface import TxnColumns as TC, MarketDataColumns as MC, PlColumns as PL, TxnPlColumns as TPL
+from tia.analysis.perf import periods_in_year, guess_freq
 from tia.util.decorator import lazy_property
+from tia.util.fmt import new_float_formatter, new_dynamic_formatter
 
 
-__all__ = ['Pl', 'PlStats']
+__all__ = ['ProfitAndLoss']
 
 
 def _dly_to_ltd(frame, dly_cols):
@@ -30,48 +31,39 @@ def _ltd_to_dly(frame, ltd_cols):
     return pl
 
 
-class Pl(object):
-    _LTDS = [PL.FEES, PL.TOT_VAL, PL.RPL_GROSS, PL.DVDS, PL.RPL_GROSS, PL.RPL, PL.UPL, PL.PL]
-
-    def __init__(self, txns):
-        """
-        :param txns: Txns object
-        """
-        self.txns = txns
-
-    @lazy_property
-    def ltd_txn_frame(self):
+class OpenAverageProfitAndLossCalculator(object):
+    def compute(self, txns):
         """Compute the long/short live-to-date transaction level profit and loss. Uses an open average calculation"""
-        txndata = self.txns.frame
-        mktdata = self.txns.pricer.get_eod_frame()
+        txndata = txns.frame
+        mktdata = txns.pricer.get_eod_frame()
         if not isinstance(mktdata.index, pd.DatetimeIndex):
             mktdata.to_timestamp(freq='B')
 
         # get the set of all txn dts and mkt data dts
-        pl = pd.merge(txndata, mktdata.reset_index(), how='outer', on=PL.DT)
+        pl = pd.merge(txndata, mktdata.reset_index(), how='outer', on=TPL.DT)
         if pl[TC.PID].isnull().all():
-            frame = pd.DataFrame(index=pl.index)
-            frame[PL.DT] = pl[PL.DT]
-            frame[PL.POS] = 0
-            frame[PL.PID] = 0
-            frame[PL.TID] = 0
-            frame[PL.TXN_QTY] = np.nan
-            frame[PL.TXN_PX] = np.nan
-            frame[PL.TXN_FEES] = 0
-            frame[PL.TXN_PREMIUM] = 0
-            frame[PL.TXN_INTENT] = 0
-            frame[PL.TXN_ACTION] = 0
-            frame[PL.CLOSE_PX] = pl[PL.CLOSE_PX]
-            frame[PL.OPEN_VAL] = 0
-            frame[PL.MKT_VAL] = 0
-            frame[PL.TOT_VAL] = 0
-            frame[PL.DVDS] = 0
-            frame[PL.FEES] = 0
-            frame[PL.RPL_GROSS] = 0
-            frame[PL.RPL] = 0
-            frame[PL.UPL] = 0
-            frame[PL.PL] = 0
-            return frame
+            ltd_frame = pd.DataFrame(index=pl.index)
+            ltd_frame[TPL.DT] = pl[PL.DT]
+            ltd_frame[TPL.POS] = 0
+            ltd_frame[TPL.PID] = 0
+            ltd_frame[TPL.TID] = 0
+            ltd_frame[TPL.TXN_QTY] = np.nan
+            ltd_frame[TPL.TXN_PX] = np.nan
+            ltd_frame[TPL.TXN_FEES] = 0
+            ltd_frame[TPL.TXN_PREMIUM] = 0
+            ltd_frame[TPL.TXN_INTENT] = 0
+            ltd_frame[TPL.TXN_ACTION] = 0
+            ltd_frame[TPL.CLOSE_PX] = pl[PL.CLOSE_PX]
+            ltd_frame[TPL.OPEN_VAL] = 0
+            ltd_frame[TPL.MKT_VAL] = 0
+            ltd_frame[TPL.TOT_VAL] = 0
+            ltd_frame[TPL.DVDS] = 0
+            ltd_frame[TPL.FEES] = 0
+            ltd_frame[TPL.RPL_GROSS] = 0
+            ltd_frame[TPL.RPL] = 0
+            ltd_frame[TPL.UPL] = 0
+            ltd_frame[TPL.PL] = 0
+            return ltd_frame
         else:
             pl.sort([TC.DT, TC.PID, TC.TID], inplace=1)
             pl.reset_index(inplace=1, drop=1)
@@ -125,60 +117,98 @@ class Pl(object):
             tpl = upl + rpl
             # build the result
             data = OrderedDict()
-            data[PL.DT] = dts
-            data[PL.POS] = pos_qtys
-            data[PL.PID] = pids
-            data[PL.TID] = tids
-            data[PL.TXN_QTY] = txn_qtys
-            data[PL.TXN_PX] = txn_pxs
-            data[PL.TXN_FEES] = txn_fees
-            data[PL.TXN_PREMIUM] = premiums
-            data[PL.TXN_INTENT] = intents
-            data[PL.TXN_ACTION] = sides
-            data[PL.CLOSE_PX] = closing_pxs
-            data[PL.OPEN_VAL] = open_vals
-            data[PL.MKT_VAL] = mkt_vals
-            data[PL.TOT_VAL] = total_vals
-            data[PL.DVDS] = dvds
-            data[PL.FEES] = fees
-            data[PL.RPL_GROSS] = rpl_gross
-            data[PL.RPL] = rpl
-            data[PL.UPL] = upl
-            data[PL.PL] = tpl
-            frame = pd.DataFrame(data, columns=data.keys())
-            return frame
+            data[TPL.DT] = dts
+            data[TPL.POS] = pos_qtys
+            data[TPL.PID] = pids
+            data[TPL.TID] = tids
+            data[TPL.TXN_QTY] = txn_qtys
+            data[TPL.TXN_PX] = txn_pxs
+            data[TPL.TXN_FEES] = txn_fees
+            data[TPL.TXN_PREMIUM] = premiums
+            data[TPL.TXN_INTENT] = intents
+            data[TPL.TXN_ACTION] = sides
+            data[TPL.CLOSE_PX] = closing_pxs
+            data[TPL.OPEN_VAL] = open_vals
+            data[TPL.MKT_VAL] = mkt_vals
+            data[TPL.TOT_VAL] = total_vals
+            data[TPL.DVDS] = dvds
+            data[TPL.FEES] = fees
+            data[TPL.RPL_GROSS] = rpl_gross
+            data[TPL.RPL] = rpl
+            data[TPL.UPL] = upl
+            data[TPL.PL] = tpl
+            ltd_frame = pd.DataFrame(data, columns=data.keys())
+            return ltd_frame
 
-    @lazy_property
-    def dly_txn_frame(self):
-        ltds = [PL.FEES, PL.TOT_VAL, PL.RPL_GROSS, PL.DVDS, PL.RPL, PL.RPL, PL.UPL, PL.PL]
-        return _ltd_to_dly(self.ltd_txn_frame, ltds)
+
+class TxnProfitAndLossDetails(object):
+    def __init__(self, txns=None, frame=None, ltd_frame=None):
+        """
+        :param txns: Txns object
+        """
+        if txns is None and frame is None and ltd_frame is None:
+            raise ValueError('Either {txns, frame, ltd_frame} must be defined')
+
+        self.txns = txns
+        self._frame = frame
+        self._ltd_frame = ltd_frame
+        self.ltd_cols = [TPL.FEES, TPL.TOT_VAL, TPL.RPL_GROSS, TPL.DVDS, TPL.RPL, TPL.RPL, TPL.UPL, TPL.PL]
 
     @property
     def ltd_frame(self):
-        txnlvl = self.ltd_txn_frame[PL.PL_COLUMNS]
-        return txnlvl.set_index(PL.DT).groupby(lambda x: x).apply(lambda x: x.iloc[-1])
+        if self._ltd_frame is None:
+            if self._frame is not None:
+                self._ltd_frame = _dly_to_ltd(self._frame, self.ltd_cols)
+            elif self.txns is not None:
+                self._ltd_frame = OpenAverageProfitAndLossCalculator().compute(self.txns)
+            else:
+                raise Exception('either txns or pl frame must be defined')
+        return self._ltd_frame
 
     @property
-    def dly_frame(self):
-        return _ltd_to_dly(self.ltd_frame, self._LTDS)
+    def frame(self):
+        if self._frame is None:
+            ltd = self.ltd_frame
+            self._frame = _ltd_to_dly(ltd, self.ltd_cols)
+        return self._frame
 
-    ltd_txn = property(lambda self: self.ltd_txn_frame[PL.PL])
-    dly_txn = property(lambda self: self.dly_txn_frame[PL.PL])
-    ltd = property(lambda self: self.ltd_frame[PL.PL])
-    annual = property(lambda self: self.dly.resample('A', how='sum'))
-    quarterly = property(lambda self: self.dly.resample('Q', how='sum'))
-    monthly = property(lambda self: self.dly.resample('M', how='sum'))
-    weekly = property(lambda self: self.dly.resample('W', how='sum'))
-    dly = property(lambda self: self.dly_frame[PL.PL])
+    def asfreq(self, freq):
+        frame = self.frame
+        pl = frame[PL.ALL].set_index(PL.DT)
+        if freq == 'B':
+            resampled = pl.groupby(pl.index.date).apply(lambda f: f.sum())
+            resampled.index = pd.DatetimeIndex([i for i in resampled.index])
+            return ProfitAndLossDetails(resampled)
+        else:
+            resampled = pl.resample(freq, how='sum')
+            return ProfitAndLossDetails(resampled)
 
-    def new_stats(self, pl, label):
-        return PlStats(pl, label)
+    # -----------------------------------------------------------
+    # Resampled data
+    dly = lazy_property(lambda self: self.asfreq('B'), 'dly')
+    weekly = lazy_property(lambda self: self.asfreq('W'), 'weekly')
+    monthly = lazy_property(lambda self: self.asfreq('M'), 'monthly')
+    quarterly = lazy_property(lambda self: self.asfreq('Q'), 'quarterly')
+    annual = lazy_property(lambda self: self.asfreq('A'), 'annual')
 
-    dly_stats = lazy_property(lambda self: self.new_stats(self.dly, 'dly'), 'dly_stats')
-    weekly_stats = property(lambda self: self.new_stats(self.weekly, 'weekly'), 'weekly_stats')
-    monthly_stats = property(lambda self: self.new_stats(self.monthly, 'monthly'), 'monthly_stats')
-    quarterly_stats = property(lambda self: self.new_stats(self.quarterly, 'quarterly'), 'quarterly_stats')
-    annual_stats = property(lambda self: self.new_stats(self.annual, 'annual'), 'annual_stats')
+    def get_pid_mask(self, pid):
+        return self.frame[TPL.PID] == pid
+
+    def truncate(self, before=None, after=None, pid=None):
+        if before is None and after is None and pid is None:
+            return self
+        elif before or after:
+            sub = self.frame.truncate(before, after)
+            return TxnProfitAndLossDetails(frame=sub)
+        else:
+            mask = self.get_pid_mask(pid)
+            frame = self.frame
+            sub = frame.ix[mask.values]
+            return TxnProfitAndLossDetails(frame=sub)
+
+    def iter_by_year(self):
+        for key, grp in self.frame.groupby(self.frame[TPL.DT].dt.year):
+            yield key, TxnProfitAndLossDetails(frame=grp)
 
     def subset(self, txns):
         """To perform a subset it is not possible to reuse the frame since it is LTD, so we convert to daily then
@@ -186,18 +216,55 @@ class Pl(object):
         :param txns: the update Txns object
         :return:
         """
-        result = Pl(txns)
+        result = TxnProfitAndLossDetails(txns)
         # TODO - add reusing calcs. Issue is when removing PIDs, then could be multiple entries per dt
         # use daily txn, clear all values where != pid
         # determine which Timestamp columns can be removed as an old position may have multiple txns on same day
         # recreate ltd from dly
+        # Need to take care if a dvd occurs at end of day
         return result
 
 
-class PlStats(object):
-    def __init__(self, pl, label=None):
-        self.pl = pl
-        self.label = label
+class ProfitAndLossDetails(object):
+    def __init__(self, frame=None, ltd_frame=None):
+        self._frame = frame
+        self._ltd_frame = ltd_frame
+
+    @property
+    def ltd_frame(self):
+        ltd = self._ltd_frame
+        if ltd is None:
+            if self._frame is None:
+                raise Exception('Both frame and ltd frame are None. At least one must be defined.')
+            self._ltd_frame = ltd = _dly_to_ltd(self._frame, PL.LTDS)
+        return ltd
+
+    @property
+    def frame(self):
+        obs = self._frame
+        if obs is None:
+            if self._ltd_frame is None:
+                raise Exception('Both frame and ltd frames are None. At least one must be defined.')
+            self._frame = obs = _ltd_to_dly(self._ltd_frame, PL.LTDS)
+        return obs
+
+    def rolling_frame(self, n):
+        return pd.rolling_sum(self.frame, n)
+
+    def asfreq(self, freq):
+        """Resample the p&l at the specified frequency
+
+        :param freq:
+        :return: Pl object
+        """
+        frame = self.frame
+        if freq == 'B':
+            resampled = frame.groupby(frame.index.date).apply(lambda f: f.sum())
+            resampled.index = pd.DatetimeIndex([i for i in resampled.index])
+            return ProfitAndLossDetails(resampled)
+        else:
+            resampled = frame.resample(freq, how='sum')
+            return ProfitAndLossDetails(resampled)
 
     @lazy_property
     def drawdown_info(self):
@@ -220,22 +287,29 @@ class PlStats(object):
 
     @lazy_property
     def drawdowns(self):
-        ltd = self.pl.cumsum()
+        ltd = self.ltd_frame.pl
         maxpl = pd.expanding_max(ltd)
         maxpl[maxpl < 0] = 0
         dd = ltd - maxpl
         return dd
 
     # scalar data
-    cnt = property(lambda self: len(self.pl.index))
-    mean = lazy_property(lambda self: self.pl.mean(), 'mean')
+    cnt = property(lambda self: self.frame.pl.notnull().astype(int).sum())
+    mean = lazy_property(lambda self: self.frame.pl.mean(), 'mean')
     avg = mean
-    std = lazy_property(lambda self: self.pl.std(), 'std')
-    std_ann = lazy_property(lambda self: np.sqrt(periods_in_year(self.pl)) * self.std, 'std_ann')
+    std = lazy_property(lambda self: self.frame.pl.std(), 'std')
+    std_ann = lazy_property(lambda self: np.sqrt(periods_in_year(self.frame.pl)) * self.std, 'std_ann')
     maxdd = lazy_property(lambda self: self.drawdown_info['maxdd'].min(), 'maxdd')
-    maxdd_dt = lazy_property(lambda self: None if self.drawdown_info.empty else self.drawdown_info['maxdd dt'].ix[
-        self.drawdown_info['maxdd'].idxmin()], 'maxdd_dt')
     dd_avg = lazy_property(lambda self: self.drawdown_info['maxdd'].mean(), 'dd_avg')
+    min = property(lambda self: self.frame.pl.min())
+    max = property(lambda self: self.frame.pl.max())
+
+    @lazy_property
+    def maxdd_dt(self):
+        if self.drawdown_info.empty:
+            return None
+        else:
+            return self.drawdown_info['maxdd dt'].ix[self.drawdown_info['maxdd'].idxmin()]
 
     @lazy_property
     def series(self):
@@ -245,8 +319,8 @@ class PlStats(object):
         d['maxdd'] = self.maxdd
         d['maxdd dt'] = self.maxdd_dt
         d['dd avg'] = self.dd_avg
-        d['cnt'] = self.pl.notnull().astype(int).sum()
-        return pd.Series(d, name=self.label or self.pl.index.freq)
+        d['cnt'] = self.cnt
+        return pd.Series(d, name=self.frame.index.freq or guess_freq(self.frame.index))
 
     def _repr_html_(self):
         from tia.util.fmt import new_dynamic_formatter
@@ -254,8 +328,8 @@ class PlStats(object):
         fmt = new_dynamic_formatter(method='row', precision=2, pcts=1, trunc_dot_zeros=1, parens=1)
         return fmt(self.series.to_frame())._repr_html_()
 
-    def plot_ltd(self, ax=None, style='k', label='ltd', show_dd=1, guess_xlabel=1):
-        ltd = self.pl.cumsum()
+    def plot_ltd(self, ax=None, style='k', label='ltd', show_dd=1, guess_xlabel=1, title=True):
+        ltd = self.ltd_frame.pl
         ax = ltd.plot(ax=ax, style=style, label=label)
         if show_dd:
             dd = self.drawdowns
@@ -281,6 +355,146 @@ class PlStats(object):
                 dtstr = '{0}'.format(hasattr(mdt, 'date') and mdt.date() or mdt)
             ax.text(mdt, dd[mdt], "{1} \n {0}".format(fmt(mdd), dtstr).strip(), ha="center", va="top", size=8,
                     bbox=bbox_props)
+
+        if title is True:
+            df = new_dynamic_formatter(precision=1, parens=False, trunc_dot_zeros=True)
+            total = df(ltd.iloc[-1])
+            vol = df(self.std)
+            mdd = df(self.maxdd)
+            title = 'pnl %s     vol %s     maxdd %s' % (total, vol, mdd)
+
+        title and ax.set_title(title, fontdict=dict(fontsize=10, fontweight='bold'))
         return ax
 
+
+class ProfitAndLoss(object):
+    def __init__(self, txns=None, txnpl_details=None):
+        if txns is None and txnpl_details is None:
+            raise ValueError('txns or txn_details must be specified')
+        self.txns = txns
+        self._txn_details = txnpl_details
+
+    @property
+    def txn_details(self):
+        if self._txn_details is None:
+            self._txn_details = TxnProfitAndLossDetails(self.txns)
+        return self._txn_details
+
+    txn_frame = property(lambda self: self.txn_details.frame)
+    ltd_txn_frame = property(lambda self: self.txn_details.ltd_frame)
+    txn = property(lambda self: self.txn_frame.set_index(PL.DT).pl)
+    ltd_txn = property(lambda self: self.ltd_txn_frame.set_index(PL.DT).pl)
+
+    dly_details = lazy_property(lambda self: self.txn_details.dly, 'dly_details')
+    dly_frame = property(lambda self: self.dly_details.frame)
+    ltd_dly_frame = property(lambda self: self.dly_details.ltd_frame)
+    dly = property(lambda self: self.dly_frame.pl)
+    ltd_dly = property(lambda self: self.ltd_dly_frame.pl)
+
+    weekly_details = lazy_property(lambda self: self.txn_details.weekly, 'weekly_details')
+    weekly_frame = property(lambda self: self.weekly_details.frame)
+    ltd_weekly_frame = property(lambda self: self.weekly_details.ltd_frame)
+    weekly = property(lambda self: self.weekly_frame.pl)
+    ltd_weekly = property(lambda self: self.ltd_weekly_frame.pl)
+
+    monthly_details = lazy_property(lambda self: self.txn_details.monthly, 'monthly_details')
+    monthly_frame = property(lambda self: self.monthly_details.frame)
+    ltd_monthly_frame = property(lambda self: self.monthly_details.ltd_frame)
+    monthly = property(lambda self: self.monthly_frame.pl)
+    ltd_monthly = property(lambda self: self.ltd_monthly_frame.pl)
+
+    quarterly_details = lazy_property(lambda self: self.txn_details.quarterly, 'quarterly_details')
+    quarterly_frame = property(lambda self: self.quarterly_details.frame)
+    ltd_quarterly_frame = property(lambda self: self.quarterly_details.ltd_frame)
+    quarterly = property(lambda self: self.quarterly_frame.pl)
+    ltd_quarterly = property(lambda self: self.ltd_quarterly_frame.pl)
+
+    annual_details = lazy_property(lambda self: self.txn_details.annual, 'annual_details')
+    annual_frame = property(lambda self: self.annual_details.frame)
+    ltd_annual_frame = property(lambda self: self.annual_details.ltd_frame)
+    annual = property(lambda self: self.annual_frame.pl)
+    ltd_annual = property(lambda self: self.ltd_annual_frame.pl)
+
+    def iter_by_year(self):
+        for yr, tdetails in self.txn_details.iter_by_year():
+            yield yr, ProfitAndLoss(txnpl_details=tdetails)
+
+    def truncate(self, before=None, after=None, pid=None):
+        if before is None and after is None and pid is None:
+            return self
+        else:
+            details = self.txn_details.truncate(before, after, pid)
+            return ProfitAndLoss(txnpl_details=details)
+
+    def get_pid_mask(self, pid):
+        return self.txn_details.get_pid_mask(pid)
+
+    def report_by_year(self, summary_fct=None, years=None, ltd=1, prior_n_yrs=None, first_n_yrs=None, ranges=None,
+                       bm_rets=None):
+        """Summarize the profit and loss by year
+        :param summary_fct: function(ProfitAndLoss) and returns a dict or Series
+        :param years: int, array, boolean or None. If boolean and False, then show no years. If int or array
+                      show only those years, else show all years if None
+        :param ltd: include live to date summary
+        :param prior_n_years: integer or list. Include summary for N years of return data prior to end date
+        :param first_n_years: integer or list. Include summary for N years of return data after start date
+        :param ranges: list of ranges. The range consists of a year start and year end
+        :param dm_dly_rets: daily return series for the benchmark for beta/alpha calcs
+        :return: DataFrame
+        """
+        if years and np.isscalar(years):
+            years = [years]
+
+        if summary_fct is None:
+            def summary_fct(pl):
+                monthly = pl.monthly_details
+                dly = pl.dly_details
+                data = OrderedDict()
+                data['mpl avg'] = monthly.mean
+                data['mpl std ann'] = monthly.std_ann
+                data['maxdd'] = dly.maxdd
+                data['maxdd dt'] = dly.maxdd_dt
+                data['avg dd'] = dly.dd_avg
+                data['best month'] = monthly.max
+                data['worst month'] = monthly.min
+                data['best day'] = dly.max
+                data['worst day'] = dly.min
+                data['nmonths'] = monthly.cnt
+                return data
+
+        results = OrderedDict()
+
+        if years is not False:
+            for yr, pandl in self.iter_by_year():
+                if years is None or yr in years:
+                    results[yr] = summary_fct(pandl)
+
+        # First n years
+        if first_n_yrs:
+            first_n_yrs = first_n_yrs if not np.isscalar(first_n_yrs) else [first_n_yrs]
+            for first in first_n_yrs:
+                after = '12/31/%s' % (self.dly.index[0].year + first)
+                firstN = self.truncate(after=after)
+                results['first {0}yrs'.format(first)] = summary_fct(firstN)
+
+        # Ranges
+        if ranges:
+            for range in ranges:
+                yr_start, yr_end = range
+                rng_rets = self.truncate('1/1/%s' % yr_start, '12/31/%s' % yr_end)
+                results['{0}-{1}'.format(yr_start, yr_end)] = summary_fct(rng_rets)
+
+        # Prior n years
+        if prior_n_yrs:
+            prior_n_yrs = prior_n_yrs if not np.isscalar(prior_n_yrs) else [prior_n_yrs]
+            for prior in prior_n_yrs:
+                before = '1/1/%s' % (self.dly.index[-1].year - prior)
+                priorN = self.truncate(before)
+                results['past {0}yrs'.format(prior)] = summary_fct(priorN)
+
+        # LTD
+        if ltd:
+            results['ltd'] = summary_fct(self)
+
+        return pd.DataFrame(results, index=results.values()[0].keys()).T
 
