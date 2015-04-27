@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 
 from tia.analysis.model.txn import Intent, Action
-from tia.analysis.model.interface import PlColumns as PL, PositionColumns as PC
+from tia.analysis.model.interface import TxnPlColumns as TPL, PositionColumns as PC
 from tia.util.decorator import lazy_property
 
 
@@ -22,56 +22,43 @@ class State(object):
 
 
 class Position(object):
-    def __init__(self, pid, dly_txn_pl_frame, trades, dly_txn_ret):
+    def __init__(self, pid, pl, trades, performance):
         """
         :param pid: position id
         :param dly_txn_pl: daily transaction level DataFrame
         :param trades: trade array
         """
         self.pid = pid
-        self.dly_txn_pl_frame = dly_txn_pl_frame
-        self.dly_txn_ret = dly_txn_ret
+        self.pl = pl
+        self.performance = performance
         self.trades = trades
-        self.first = first = dly_txn_pl_frame.iloc[0]
-        self.last = last = dly_txn_pl_frame.iloc[-1]
-        self.is_closed = is_closed = last[PL.TXN_INTENT] == Intent.Close
-        self.is_long = is_long = first[PL.TXN_ACTION] == Action.Buy
+        self.first = first = pl.txn_frame.iloc[0]
+        self.last = last = pl.txn_frame.iloc[-1]
+        self.is_closed = last[TPL.TXN_INTENT] == Intent.Close
+        self.is_long = is_long = first[TPL.TXN_ACTION] == Action.Buy
         self.is_short = not is_long
-        self.pid = first[PL.PID]
-        self.open_dt = first[PL.DT]
-        self.open_premium = first[PL.TXN_PREMIUM]
-        self.open_qty = first[PL.TXN_QTY]
-        self.open_px = first[PL.TXN_PX]
-        self.close_px = last[PL.TXN_PX]
-        self.close_dt = last[PL.DT]
-        cumpl = dly_txn_pl_frame[PL.PL].cumsum()
-        self.pl = cumpl.iloc[-1]
-        self.pl_min = cumpl.min()
-        self.pl_max = cumpl.max()
+        self.pid = first[TPL.PID]
+        self.open_dt = first[TPL.DT]
+        self.open_premium = first[TPL.TXN_PREMIUM]
+        self.open_qty = first[TPL.TXN_QTY]
+        self.open_px = first[TPL.TXN_PX]
+        self.close_px = last[TPL.TXN_PX]
+        self.close_dt = last[TPL.DT]
+        ltd = pl.ltd_txn
+        self.pl = ltd.iloc[-1]
+        self.pl_min = ltd.min()
+        self.pl_max = ltd.max()
 
-        rpath = (1. + self.dly_ret).cumprod() - 1.
-        self.ret = rpath.iloc[-1]
-        self.ret_min = rpath.min()
-        self.ret_max = rpath.max()
-        self.duration = len(dly_txn_pl_frame[PL.DT].drop_duplicates())
+        ltd = performance.ltd_txn
+        self.ret = ltd.iloc[-1]
+        self.ret_min = ltd.min()
+        self.ret_max = ltd.max()
+        # TODO - should use a time delta and determine the number of days
+        self.duration = len(pl.ltd_txn_frame[TPL.DT].drop_duplicates())
         self.ntxns = len(trades)
 
     state = property(lambda self: self.is_closed and State.Closed or State.Open)
     side = property(lambda self: self.is_long and Side.Long or Side.Short)
-
-    @property
-    def dly_ret(self):
-        ltd = (1. + self.dly_txn_ret).cumprod()
-        ltd.index = self.dly_txn_pl_frame[PL.DT]
-        dly = ltd.groupby(lambda x: x).apply(lambda x: x[-1])
-        dly.iloc[1:] = dly.pct_change()[1:]
-        dly.iloc[0] = dly.iloc[0] / 1. - 1.
-        return dly
-
-    @property
-    def dly_pl(self):
-        return self.dly_txn_pl_frame[[PL.DT, PL.PL]].set_index(PL.DT).resample('B', how='sum', kind='period')[
-            PL.PL].dropna()
 
     def __repr__(self):
         kwargs = {
@@ -103,11 +90,12 @@ class Positions(object):
     def __getitem__(self, pid):
         if pid == 0:
             raise ValueError('pid must be non-zero')
-        trds = self.txns.get_pid_txns(pid)
-        dly = self.txns.pl.dly_txn_frame
-        sub = dly.ix[dly[PL.PID] == pid]
-        rets = self.txns.rets.dly_txn[sub.index]
-        return Position(pid, sub, trds, rets)
+        txns = self.txns
+        trds = txns.get_pid_txns(pid)
+        pl = txns.pl.truncate(pid=pid)
+        mask = txns.pl.txn_details.get_pid_mask(pid)
+        performance = txns.performance.filter(mask)
+        return Position(pid, pl, trds, performance)
 
     def __iter__(self):
         for pid in self.pids:
