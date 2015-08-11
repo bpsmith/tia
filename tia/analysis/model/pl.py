@@ -6,7 +6,7 @@ import numpy as np
 from tia.analysis.model.interface import TxnColumns as TC, MarketDataColumns as MC, PlColumns as PL, TxnPlColumns as TPL
 from tia.analysis.perf import periods_in_year, guess_freq
 from tia.util.decorator import lazy_property
-from tia.util.fmt import new_float_formatter, new_dynamic_formatter
+from tia.util.fmt import new_dynamic_formatter
 
 
 __all__ = ['ProfitAndLoss']
@@ -16,7 +16,11 @@ def _dly_to_ltd(frame, dly_cols):
     frame = frame.copy()
     ilocs = [frame.columns.get_loc(_) for _ in dly_cols]
     sums = frame[dly_cols].cumsum()
-    frame.iloc[:, ilocs] = sums.iloc[:, range(len(dly_cols))]
+    # BUG when copying a single row, oddly
+    if len(frame.index) == 1:
+        frame.iloc[0, ilocs] = sums.iloc[0, range(len(dly_cols))]
+    else:
+        frame.iloc[:, ilocs] = sums.iloc[:, range(len(dly_cols))]
     return frame
 
 
@@ -366,26 +370,19 @@ class ProfitAndLossDetails(object):
         title and ax.set_title(title, fontdict=dict(fontsize=10, fontweight='bold'))
         return ax
 
+    def truncate(self, before=None, after=None):
+        if before is None and after is None:
+            return self
+        else:
+            sub = self.frame.truncate(before, after)
+            return ProfitAndLossDetails(frame=sub)
+
 
 class ProfitAndLoss(object):
-    def __init__(self, txns=None, txnpl_details=None):
-        if txns is None and txnpl_details is None:
-            raise ValueError('txns or txn_details must be specified')
-        self.txns = txns
-        self._txn_details = txnpl_details
+    def __init__(self, dly_details):
+        self._dly_details = dly_details
 
-    @property
-    def txn_details(self):
-        if self._txn_details is None:
-            self._txn_details = TxnProfitAndLossDetails(self.txns)
-        return self._txn_details
-
-    txn_frame = property(lambda self: self.txn_details.frame)
-    ltd_txn_frame = property(lambda self: self.txn_details.ltd_frame)
-    txn = property(lambda self: self.txn_frame.set_index(PL.DT).pl)
-    ltd_txn = property(lambda self: self.ltd_txn_frame.set_index(PL.DT).pl)
-
-    dly_details = lazy_property(lambda self: self.txn_details.dly, 'dly_details')
+    dly_details = property(lambda self: self._dly_details)
     dly_frame = property(lambda self: self.dly_details.frame)
     ltd_dly_frame = property(lambda self: self.dly_details.ltd_frame)
     dly = property(lambda self: self.dly_frame.pl)
@@ -416,18 +413,15 @@ class ProfitAndLoss(object):
     ltd_annual = property(lambda self: self.ltd_annual_frame.pl)
 
     def iter_by_year(self):
-        for yr, tdetails in self.txn_details.iter_by_year():
-            yield yr, ProfitAndLoss(txnpl_details=tdetails)
+        for yr, details in self.dly_details.iter_by_year():
+            yield yr, ProfitAndLoss(details)
 
     def truncate(self, before=None, after=None, pid=None):
         if before is None and after is None and pid is None:
             return self
         else:
-            details = self.txn_details.truncate(before, after, pid)
-            return ProfitAndLoss(txnpl_details=details)
-
-    def get_pid_mask(self, pid):
-        return self.txn_details.get_pid_mask(pid)
+            details = self.dly_details.truncate(before, after)
+            return ProfitAndLoss(details)
 
     def report_by_year(self, summary_fct=None, years=None, ltd=1, prior_n_yrs=None, first_n_yrs=None, ranges=None,
                        bm_rets=None):
@@ -497,4 +491,37 @@ class ProfitAndLoss(object):
             results['ltd'] = summary_fct(self)
 
         return pd.DataFrame(results, index=results.values()[0].keys()).T
+
+
+class TxnProfitAndLoss(ProfitAndLoss):
+    def __init__(self, txns=None, txnpl_details=None):
+        if txns is None and txnpl_details is None:
+            raise ValueError('txns or txn_details must be specified')
+        self.txns = txns
+        self._txn_details = txnpl_details
+        # Don't set the attribute, wany lazy property to be called
+        #ProfitAndLoss.__init__(self, None)
+
+    @property
+    def txn_details(self):
+        if self._txn_details is None:
+            self._txn_details = TxnProfitAndLossDetails(self.txns)
+        return self._txn_details
+
+    txn_frame = property(lambda self: self.txn_details.frame)
+    ltd_txn_frame = property(lambda self: self.txn_details.ltd_frame)
+    txn = property(lambda self: self.txn_frame.set_index(PL.DT).pl)
+    ltd_txn = property(lambda self: self.ltd_txn_frame.set_index(PL.DT).pl)
+
+    dly_details = lazy_property(lambda self: self.txn_details.dly, 'dly_details')
+
+    def truncate(self, before=None, after=None, pid=None):
+        if before is None and after is None and pid is None:
+            return self
+        else:
+            details = self.txn_details.truncate(before, after, pid)
+            return TxnProfitAndLoss(txnpl_details=details)
+
+    def get_pid_mask(self, pid):
+        return self.txn_details.get_pid_mask(pid)
 

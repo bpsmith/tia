@@ -40,7 +40,7 @@ class XmlHelper(object):
         """ provide a message iterator which checks for a response error prior to returning """
         for msg in evt:
             if logger.isEnabledFor(log.logging.DEBUG):
-                logger.debug(msg.Print)
+                logger.debug(msg.toString())
             if msg.asElement().hasElement('responseError'):
                 raise Exception(msg.toString())
             yield msg
@@ -90,7 +90,8 @@ class XmlHelper(object):
                 return pd.NaT
             else:
                 v = ele.getValue()
-                return datetime(hour=v.hour, minute=v.minute, second=v.second).time() if v else np.nan
+                now = pd.datetime.now()
+                return datetime(year=now.year, month=now.month, day=now.day, hour=v.hour, minute=v.minute, second=v.second).time() if v else np.nan
         elif dtype == 13:  # Datetime
             if ele.isNull():
                 return pd.NaT

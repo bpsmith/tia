@@ -45,8 +45,8 @@ class SidAccessor(object):
     def __getitem__(self, flds):
         return self.get_attributes(flds, **self.overrides)
 
-    def get_historical(self, flds, start, end, period=None):
-        return self.mgr.get_historical(self.sid, flds, start, end, period)
+    def get_historical(self, flds, start, end, period=None, **overrides):
+        return self.mgr.get_historical(self.sid, flds, start, end, period, **overrides)
 
     @property
     def currency(self):
@@ -93,8 +93,8 @@ class MultiSidAccessor(object):
     def __getitem__(self, flds):
         return self.get_attributes(flds, **self.overrides)
 
-    def get_historical(self, flds, start, end, period=None):
-        return self.mgr.get_historical(self.sids, flds, start, end, period)
+    def get_historical(self, flds, start, end, period=None, **overrides):
+        return self.mgr.get_historical(self.sids, flds, start, end, period, **overrides)
 
     def __repr__(self):
         return '%s(%s)' % (self.__class__.__name__, ','.join(self.sids))
@@ -110,7 +110,7 @@ class DataManager(object):
     def get_attributes(self, sids, flds, **overrides):
         raise NotImplementedError('must implement get_attributes')
 
-    def get_historical(self, sids, flds, start, end, period=None):
+    def get_historical(self, sids, flds, start, end, period=None, **overrides):
         raise NotImplementedError('must implement get_historical')
 
     def get_sid_accessor(self, sid, **overrides):
@@ -147,10 +147,10 @@ class BbgDataManager(DataManager):
     def get_attributes(self, sids, flds, **overrides):
         return self.terminal.get_reference_data(sids, flds, **overrides).as_frame()
 
-    def get_historical(self, sids, flds, start, end, period=None):
+    def get_historical(self, sids, flds, start, end, period=None, **overrides):
         end = end
         start = start
-        frame = self.terminal.get_historical(sids, flds, start=start, end=end, period=period).as_frame()
+        frame = self.terminal.get_historical(sids, flds, start=start, end=end, period=period, **overrides).as_frame()
         if isinstance(sids, basestring):
             return frame[sids]
         else:  # multi-indexed frame
@@ -283,7 +283,7 @@ class CacheOnlyDataManager(DataManager):
         msg = 'Reference data for sids={0}, flds={1}{2}'.format(sstr, fstr, ostr)
         raise CacheMissError(msg)
 
-    def get_historical(self, sids, flds, start, end, period=None):
+    def get_historical(self, sids, flds, start, end, period=None, **overrides):
         sids = _force_array(sids)
         flds = _force_array(flds)
         sstr = ','.join(sids)
@@ -379,7 +379,7 @@ class CachedDataManager(DataManager):
             ts = pd.to_datetime(ts_or_period)
             return ts.to_period('D').to_timestamp()
 
-    def get_historical(self, sids, flds, start, end, period=None):
+    def get_historical(self, sids, flds, start, end, period=None, **overrides):
         # TODO - Revisit date handling for caching
         is_str = isinstance(sids, basestring)
         is_fld_str = isinstance(flds, basestring)
@@ -391,9 +391,13 @@ class CachedDataManager(DataManager):
 
         for sid in sids:
             key = (sid, 'historical', dict(period=period))
+            if overrides:
+                    for k, v in overrides.iteritems():
+                        key[2][k] = v
+
             cached_frame, userdata = self.storage.get(key)
             if cached_frame is None:
-                frame = self.dm.get_historical(sid, flds, start, end)
+                frame = self.dm.get_historical(sid, flds, start, end, **overrides)
                 self.storage.set(key, frame, start=start, end=end)
                 frames[sid] = frame
             else:

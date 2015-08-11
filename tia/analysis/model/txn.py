@@ -2,7 +2,7 @@ import pandas as pd
 
 from tia.util.decorator import lazy_property
 from tia.analysis.model.interface import TxnColumns as TC
-from tia.analysis.model.pl import ProfitAndLoss
+from tia.analysis.model.pl import TxnProfitAndLoss
 from tia.analysis.model.ret import RoiiRetCalculator
 from tia.analysis.util import is_decrease, is_increase, crosses_zero
 
@@ -65,11 +65,21 @@ class Txns(object):
         # split into l/s positions
         self.trades = tuple(iter_txns(trades))
         self.pricer = pricer
-        self.ret_calc = ret_calc or RoiiRetCalculator()
+        self._ret_calc = ret_calc or RoiiRetCalculator()
 
     pids = property(lambda self: self.frame[TC.PID].unique())
-    pl = lazy_property(lambda self: ProfitAndLoss(self), 'pl')
+    pl = lazy_property(lambda self: TxnProfitAndLoss(self), 'pl')
     performance = lazy_property(lambda self: self.ret_calc.compute(self), 'performance')
+
+    @property
+    def ret_calc(self):
+        return self._ret_calc
+
+    @ret_calc.setter
+    def ret_calc(self, calc):
+        self._ret_calc = calc
+        if hasattr(self, '_performance'):
+            delattr(self, '_performance')
 
     @lazy_property
     def frame(self):

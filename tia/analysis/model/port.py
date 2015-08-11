@@ -64,7 +64,7 @@ class SingleAssetPortfolio(object):
         """
         self.trades = tuple(trades)
         self.pricer = pricer
-        self.ret_calc = ret_calc or RoiiRetCalculator()
+        self._ret_calc = ret_calc or RoiiRetCalculator()
 
     txns = lazy_property(lambda self: Txns(self.trades, self.pricer, self.ret_calc), 'txns')
     positions = lazy_property(lambda self: Positions(self.txns), 'positions')
@@ -77,6 +77,16 @@ class SingleAssetPortfolio(object):
     monthly_pl = property(lambda self: self.pl.monthly)
     dly_rets = property(lambda self: self.performance.dly)
     monthly_rets = property(lambda self: self.performance.monthly)
+
+    @property
+    def ret_calc(self):
+        return self._ret_calc
+
+    @ret_calc.setter
+    def ret_calc(self, calc):
+        self._ret_calc = calc
+        if hasattr(self, '_txns'):
+            self.txns.ret_calc = calc
 
     def clear_cache(self):
         for attr in ['_txns', '_positions', '_long', '_short']:

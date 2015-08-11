@@ -13,7 +13,7 @@ __all__ = ['ConditionalRedBlack', 'DynamicTable', 'TableFormatter', 'RegionForma
            'PercentFormatter', 'ThousandsFormatter', 'MillionsFormatter', 'BillionsFormatter', 'DollarCentsFormatter',
            'DollarFormatter', 'ThousandDollarsFormatter', 'MillionDollarsFormatter', 'BillionDollarsFormatter',
            'YmdFormatter', 'Y_m_dFormatter', 'DynamicNumberFormatter', 'BorderTypeGrid', 'BorderTypeHorizontal',
-           'BorderTypeOutline', 'BorderTypeOutline', 'BorderTypeVertical', 'Style']
+           'BorderTypeOutline', 'BorderTypeOutline', 'BorderTypeVertical', 'Style', 'BorderTypeOutlineCols']
 
 DefaultHeaderStyle = {
     "GRID": (.5, grey), "BOX": (.25, black), "VALIGN": "MIDDLE", "LEADING": 6, "LEFTPADDING": 3,
@@ -854,9 +854,9 @@ class TableFormatter(object):
     def set_col_widths(self, pcts=None, amts=None, maxs=None, mins=None):
         """
         :param pcts: the percent of available width to use or ratio is also ok
-        :param amts: (Array or scalar) the fixed height of the rows
-        :param maxs: (Array or scalar) the maximum height of the rows (only use when pcts is used)
-        :param mins: (Array or scalar) the minimum height of the rows (only used when pcts is used)
+        :param amts: (Array or scalar) the fixed width of the cols
+        :param maxs: (Array or scalar) the maximum width of the cols (only use when pcts is used)
+        :param mins: (Array or scalar) the minimum width of the cols (only used when pcts is used)
         :return:
         """
         for arr, attr in zip([pcts, amts, maxs, mins], ['weight', 'value', 'max', 'min']):
@@ -864,7 +864,7 @@ class TableFormatter(object):
                 if not np.isscalar(arr):
                     if len(arr) != len(self.formatted_values.columns):
                         raise ValueError(
-                            '%s: expected %s rows but got %s' % (attr, len(arr), len(self.formatted_values.columns)))
+                            '%s: expected %s cols but got %s' % (attr, len(arr), len(self.formatted_values.columns)))
                 self.colattrs.ix[:, attr] = arr
         return self
 

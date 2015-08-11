@@ -58,6 +58,8 @@ class TradeBlotter(object):
     def open(self, qty, px, fees=0, **kwargs):
         if self.is_open():
             raise Exception('open position failed: position already open')
+        if qty == 0:
+            raise Exception('open position failed: qty is 0')
         self._order(qty, px, fees, **kwargs)
 
     def close(self, px, fees=0, **kwargs):

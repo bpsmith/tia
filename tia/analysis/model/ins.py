@@ -84,7 +84,7 @@ class Instrument(CostCalculator, EodMarketData):
 
     def get_mkt_val(self, pxs=None):
         """Return the market value series for the series of pxs"""
-        pxs = pxs if pxs is None else self.pxs.close
+        pxs = pxs if pxs is not None else self.pxs.close
         return pxs * self.multiplier
 
     def get_premium(self, qty, px, ts=None):
@@ -165,6 +165,15 @@ class Instruments(object):
             return self._instruments.iloc[key]
         else:
             return Instruments(self._instruments[key])
+
+    def __len__(self):
+        return self._instruments.__len__()
+
+    def __iter__(self):
+        return self._instruments.__iter__()
+
+    def iteritems(self):
+        return self._instruments.iteritems()
 
     @property
     def frame(self):
@@ -284,6 +293,26 @@ def load_bbg_stock(sid_or_accessor, start=None, end=None, dvds=True):
     return Instrument(sid, pxs, multiplier=1.)
 
 
+def load_bbg_generic(sid_or_accessor, start=None, end=None):
+    """terminal and datamgr are mutually exclusive.
+
+    :param sid_or_accessor: security identifier or SidAccessor from DataManager
+    :param start:
+    :param end:
+    :return:
+    """
+    end = end and pd.to_datetime(end) or pd.datetime.now()
+    start = start and pd.to_datetime(start) or end + pd.datetools.relativedelta(years=-1)
+
+    FLDS = ['PX_OPEN', 'PX_HIGH', 'PX_LOW', 'PX_LAST']
+    RENAME = {'PX_OPEN': 'open', 'PX_HIGH': 'high', 'PX_LOW': 'low', 'PX_LAST': 'close'}
+    accessor = _resolve_accessor(sid_or_accessor)
+    sid = accessor.sid
+    pxframe = accessor.get_historical(FLDS, start=start, end=end).rename(columns=RENAME)
+    pxs = InstrumentPrices(pxframe)
+    return Instrument(sid, pxs, multiplier=1.)
+
+
 def load_bbg_future(sid_or_accessor, start=None, end=None):
     """terminal and datamgr are mutually exclusive.
 
@@ -321,6 +350,7 @@ class BloombergInstrumentLoader(object):
         self.end = end
 
     def load(self, sids, start=None, end=None):
+        # TODO - subclss Instrument with specified instrument type
         if isinstance(sids, basestring):
             start = start or self.start
             end = end or self.end
@@ -328,6 +358,10 @@ class BloombergInstrumentLoader(object):
             sectype2 = accessor.SECURITY_TYP2
             if sectype2 == 'Future':
                 return load_bbg_future(accessor, start=start, end=end)
+            elif sectype2 == 'Index':
+                return load_bbg_generic(accessor, start=start, end=end)
+            elif sectype2 == 'CROSS':
+                return load_bbg_generic(accessor, start=start, end=end)
             elif sectype2 in self.StockTypes:
                 return load_bbg_stock(accessor, start=start, end=end)
             else:

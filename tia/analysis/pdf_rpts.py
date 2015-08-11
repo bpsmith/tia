@@ -15,12 +15,8 @@ from tia.analysis.util import insert_level
 
 class _Result(object):
     def __init__(self, port, sid, desc):
-        if len(port.trades) == 0:
-            first = port.dly_pl.index[0]
-        else:
-            first = pd.to_datetime(port.trades[0].ts.date())
         self.port = port
-        self.buyhold = port.buy_and_hold(start=first)
+        self.buyhold = port.buy_and_hold()
         self.sid = sid
         self.desc = desc
 
