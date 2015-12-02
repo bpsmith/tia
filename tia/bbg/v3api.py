@@ -380,7 +380,6 @@ class HistoricalDataRequest(Request):
         self.response.on_security_complete(sid, frame)
 
     def on_event(self, evt, is_final):
-        """ this is invoked from in response to COM PumpWaitingMessages - different thread """
         for msg in XmlHelper.message_iter(evt):
             # Single security element in historical request
             node = msg.getElement('securityData')
@@ -457,7 +456,6 @@ class ReferenceDataRequest(Request):
         ferrors and self.field_errors.extend(ferrors)
 
     def on_event(self, evt, is_final):
-        """ this is invoked from in response to COM PumpWaitingMessages - different thread """
         for msg in XmlHelper.message_iter(evt):
             for node, error in XmlHelper.security_iter(msg.getElement('securityData')):
                 if error:
@@ -607,7 +605,6 @@ class IntradayBarRequest(Request):
             self.response.bars.append(barmap)
 
     def on_event(self, evt, is_final):
-        """ this is invoked from in response to COM PumpWaitingMessages - different thread """
         for msg in XmlHelper.message_iter(evt):
             data = msg.getElement('barData')
             # tickData will have 0 to 1 tickData[] elements
@@ -676,7 +673,6 @@ class EQSRequest(Request):
         ferrors and self.field_errors.extend(ferrors)
 
     def on_event(self, evt, is_final):
-        """ this is invoked from in response to COM PumpWaitingMessages - different thread """
         for msg in XmlHelper.message_iter(evt):
             data = msg.getElement('data')
             for node, error in XmlHelper.security_iter(data.getElement('securityData')):

@@ -959,4 +959,7 @@ class TableLayout(Flowable):
         return self.component.drawOn(canvas, x, y, _sW=_sW)
 
     def split(self, aw, ah):
-        return self.component.split(aw, ah)
+        if self.component:
+            return self.component.split(aw, ah)
+        else:
+            return []
