@@ -41,7 +41,7 @@ class TestTable(unittest.TestCase):
         self.assertEquals(actual, expected)
 
     def test_region_formatter_iloc(self):
-        tf = tbl.TableFormatter(self.df1)
+        tf = tbl.DynamicTable(self.df1)
         region = tf.cells
         region.apply_format(lambda x: 'A')
         expected = pd.DataFrame([['A', 'A'], ['A', 'A']], index=[1, 2], columns=[1, 2])
@@ -65,23 +65,23 @@ class TestTable(unittest.TestCase):
         pdtest.assert_frame_equal(tf.cells.formatted_values, expected)
 
     def test_region_empty(self):
-        tf = tbl.TableFormatter(self.df1)
+        tf = tbl.DynamicTable(self.df1)
         empty = tf['ALL'].empty_frame()
         empty.apply_format(lambda x: x)
 
     def test_detect_spans(self):
-        tf = tbl.TableFormatter(self.mdf1)
+        tf = tbl.DynamicTable(self.mdf1)
         tf.header.detect_colspans()
         self.assertEquals(['SPAN', (2, 0), (3, 0)], tf.style_cmds[0])
         self.assertEquals(['SPAN', (4, 0), (5, 0)], tf.style_cmds[1])
 
-        tf = tbl.TableFormatter(self.mdf1.T)
+        tf = tbl.DynamicTable(self.mdf1.T)
         tf.index.detect_rowspans()
         self.assertEquals(['SPAN', (0, 2), (0, 3)], tf.style_cmds[0])
         self.assertEquals(['SPAN', (0, 4), (0, 5)], tf.style_cmds[1])
 
     def test_match(self):
-        tf = tbl.TableFormatter(self.mdf1)
+        tf = tbl.DynamicTable(self.mdf1)
         vcopy = tf.formatted_values.copy()
         tf.cells.match_column_labels(['A']).percent_format(precision=1)
         vcopy.iloc[2, 4] = '55.0% '  # padded for neg
@@ -91,8 +91,8 @@ class TestTable(unittest.TestCase):
         pdtest.assert_frame_equal(vcopy, tf.formatted_values)
 
     def test_period_index(self):
-        df = pd.DataFrame({'x': [1., 2.], 'y': [3., 4.]}, index=pd.date_range('1/1/2015', freq='M', periods=2).to_period())
-        tf = tbl.TableFormatter(df)
+        df = pd.DataFrame({'x': [1., 2.], 'y': [3., 4.]}, index=pd.date_range('1/1/2015', freq='M', periods=2))
+        tf = tbl.DynamicTable(df)
         # expected values
         vcopy = tf.formatted_values.copy()
         vcopy.iloc[1, 1] = '1 '
@@ -107,7 +107,7 @@ class TestTable(unittest.TestCase):
         pdtest.assert_frame_equal(vcopy, tf.formatted_values)
         # Test when it is the columns
         dfT = df.T
-        tfT = tbl.TableFormatter(dfT)
+        tfT = tbl.DynamicTable(dfT)
         vcopy = tfT.formatted_values.copy()
         vcopy.iloc[1, 1] = '1 '
         vcopy.iloc[1, 2] = '2 '

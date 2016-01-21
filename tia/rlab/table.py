@@ -1,3 +1,4 @@
+from __future__ import division
 from reportlab.platypus import Table, TableStyle, Flowable
 from reportlab.lib.colors import grey, white, HexColor, black, gray
 from matplotlib.colors import rgb2hex, LinearSegmentedColormap
@@ -5,15 +6,16 @@ from matplotlib.pyplot import get_cmap
 import numpy as np
 import pandas as pd
 
-from tia.rlab.components import KeepInFrame
+from tia.rlab.components import DynamicKeepInFrame, KeepInFrame
 import tia.util.fmt as fmt
 
 
-__all__ = ['ConditionalRedBlack', 'DynamicTable', 'TableFormatter', 'RegionFormatter', 'IntFormatter', 'FloatFormatter',
+__all__ = ['ConditionalRedBlack', 'DynamicTable', 'DynamicTable', 'RegionFormatter', 'IntFormatter', 'FloatFormatter',
            'PercentFormatter', 'ThousandsFormatter', 'MillionsFormatter', 'BillionsFormatter', 'DollarCentsFormatter',
            'DollarFormatter', 'ThousandDollarsFormatter', 'MillionDollarsFormatter', 'BillionDollarsFormatter',
            'YmdFormatter', 'Y_m_dFormatter', 'DynamicNumberFormatter', 'BorderTypeGrid', 'BorderTypeHorizontal',
-           'BorderTypeOutline', 'BorderTypeOutline', 'BorderTypeVertical', 'Style', 'BorderTypeOutlineCols']
+           'BorderTypeOutline', 'BorderTypeOutline', 'BorderTypeVertical', 'Style', 'BorderTypeOutlineCols',
+           'DynamicTableLayout', 'IntFormatterNoCommas']
 
 DefaultHeaderStyle = {
     "GRID": (.5, grey), "BOX": (.25, black), "VALIGN": "MIDDLE", "LEADING": 6, "LEFTPADDING": 3,
@@ -54,6 +56,7 @@ def pad_positive_wrapper(fmtfct):
 
 
 IntFormatter = pad_positive_wrapper(fmt.new_int_formatter(nan='-'))
+IntFormatterNoCommas = pad_positive_wrapper(fmt.new_int_formatter(nan='-', commas=False))
 FloatFormatter = pad_positive_wrapper(fmt.new_float_formatter(nan='-'))
 PercentFormatter = pad_positive_wrapper(fmt.new_percent_formatter(nan='-'))
 ThousandsFormatter = pad_positive_wrapper(fmt.new_thousands_formatter(nan='-'))
@@ -737,8 +740,33 @@ class _RegionIX(object):
         return RegionFormatter(self.region.parent, result.index, result.columns)
 
 
-class TableFormatter(object):
-    def __init__(self, df, inc_header=1, inc_index=1):
+class DynamicTableLayout:
+    ResizeToRatioAndScale = 1
+    ResizeColsToRatioAndScale = 2
+    ResizeRowsToRatioAndScale = 3
+    ResizeToFit = 4
+    ResizeColsToFit = 5
+    ResizeRowsToFit = 6
+    Scale = 7
+    DoNothing = 8
+
+
+#class TableFormatter(Flowable):
+class DynamicTable(Flowable):
+    Layouts = DynamicTableLayout
+
+    def __init__(self, df, inc_header=1, inc_index=1, layout=Layouts.DoNothing, halign=None, valign=None, truncate=False):
+        """
+
+        :param df: DataFrame
+        :param inc_header: True if showing header
+        :param inc_index: True if showing index
+        :param layout: Define how to fill out the space alloted to the table
+        :param halign:
+        :param valign:
+        :param trunacte: If True, then ensure the table does not overflow the alloted space by placing it in a
+                        KeepInFrame component.
+        """
         self.df = df
         self.inc_header = inc_header
         self.inc_index = inc_index
@@ -771,6 +799,13 @@ class TableFormatter(object):
         self.rowattrs[:] = np.nan
         self.colattrs = pd.DataFrame(np.empty((nidxs + ncols, 4)), columns=['weight', 'min', 'max', 'value'])
         self.colattrs[:] = np.nan
+        self._pre_build = []
+        # Field for pdf layout
+        self._table_builder = None
+        self.valign = valign or 'MIDDLE'
+        self.halign = halign or 'CENTER'
+        self.layout = layout
+        self.truncate = truncate
 
     def __getitem__(self, name):
         return self.named_regions[name]
@@ -868,6 +903,20 @@ class TableFormatter(object):
                 self.colattrs.ix[:, attr] = arr
         return self
 
+   #def guess_column_widths(self, max_tbl_width=None, delayed=True):
+    #    """Compute maximum characters in each column then set ratio accordingly. If char_val is not None then
+    #    instead of ratio, compute column width = nchars * char_val"""
+    #    if delayed:
+    #        import functools
+    #        self._pre_build.append(functools.partial(self.guess_column_widths, max_tbl_width, False))
+    #    else:
+    #        if max_tbl_width is None:
+    #            pcts = [_ / 100. for _ in self._to_column_widths(100.)]
+    #            self.set_col_widths(pcts=pcts)
+    #        else:
+    #            amts = self._to_column_widths(max_tbl_width)
+    #            self.set_col_widths(amts=amts)
+
     def _resolve_dims(self, available, attrs):
         def _clean(v):
             return None if np.isnan(v) else v
@@ -893,9 +942,6 @@ class TableFormatter(object):
     def resolve_row_heights(self, availHeight):
         return self._resolve_dims(availHeight, self.rowattrs)
 
-    def build(self, expand='wh', shrink='wh', vAlign='MIDDLE', hAlign='CENTER'):
-        return TableLayout(self, expand, shrink, hAlign, vAlign)
-
     def _find_column_label_positions(self, match_value_or_fct, levels=None):
         """Check the original DataFrame's column labels to find the locations of columns. And return the adjusted
         column indexing within region (offset if including index)"""
@@ -912,54 +958,126 @@ class TableFormatter(object):
             allmatches = [m + self.nhdrs for m in allmatches]
         return allmatches
 
-
-class TableLayout(Flowable):
-    def __init__(self, tb, expand='wh', shrink='wh', hAlign='CENTER', vAlign='MIDDLE'):
-        self.tb = tb
-        self.expand = expand or ''
-        self.shrink = shrink or ''
-        self.vAlign = vAlign
-        self.hAlign = hAlign
-        self._style_and_data = None
-        self.component = None
-
-    @property
-    def style_and_data(self):
-        if self._style_and_data is None:
-            data = self.tb.formatted_values.values.tolist()
-            style = TableStyle(self.tb.style_cmds)
-            self._style_and_data = style, data
-        return self._style_and_data
-
     def wrap(self, aw, ah):
-        style, data = self.style_and_data
-        # Apply any column / row sizes requested
-        widths = self.tb.resolve_col_widths(aw)
-        heights = self.tb.resolve_row_heights(ah)
-        tbl = Table(data, colWidths=widths, rowHeights=heights, style=style, vAlign=self.vAlign, hAlign=self.hAlign,
-                    repeatCols=False, repeatRows=True)
-        w, h = tbl.wrap(aw, ah)
-        pw, ph = w / float(aw), h / float(ah)
-        shrink, expand = self.shrink, self.expand
-        scale = 0
-        if expand and pw < 1. and ph < 1.:
-            scale = max('w' in expand and pw or 0, 'h' in expand and ph or 0)
-        elif shrink and (pw > 1. or ph > 1.):
-            scale = max('w' in shrink and pw or 0, 'h' in expand and ph or 0)
+        map(lambda x: x(), self._pre_build)
+        self._table_builder = builder = _PdfTableBuilder(self, self.valign, self.halign)
+        action = self.layout
+        builder.build(aw, ah)
 
-        if scale:
-            self.component = comp = KeepInFrame(aw, ah, content=[tbl], hAlign=self.hAlign, vAlign=self.vAlign)
-            w, h = comp.wrapOn(self.canv, aw, ah)
-            comp._scale = scale
-        else:
-            self.component = tbl
-        return w, h
+        if action == DynamicTableLayout.ResizeToFit:
+            builder.force_to_fit(aw=aw, ah=ah)
+        elif action == DynamicTableLayout.ResizeColsToFit:
+            builder.force_to_fit(aw=aw)
+        elif action == DynamicTableLayout.ResizeRowsToFit:
+            builder.force_to_fit(ah=ah)
+        elif action == DynamicTableLayout.ResizeToRatioAndScale:
+            builder.resize_to_ratio(aw / ah)
+            builder.scale(self.canv, aw, ah)
+        elif action == DynamicTableLayout.ResizeColsToRatioAndScale:
+            builder.resize_to_ratio(aw / ah, freeze_rows=True)
+            builder.scale(self.canv, aw, ah)
+        elif action == DynamicTableLayout.ResizeRowsToRatioAndScale:
+            builder.resize_to_ratio(aw / ah, freeze_cols=True)
+            builder.scale(self.canv, aw, ah)
+        elif action == DynamicTableLayout.Scale:
+            builder.scale(self.canv, aw, ah)
+
+        self.truncate and builder.truncate(self.canv, aw, ah)
+
+        return builder.width, builder.height
 
     def drawOn(self, canvas, x, y, _sW=0):
-        return self.component.drawOn(canvas, x, y, _sW=_sW)
+        return self._table_builder.table.drawOn(canvas, x, y, _sW=_sW)
 
     def split(self, aw, ah):
-        if self.component:
-            return self.component.split(aw, ah)
+        if self._table_builder.table:
+            return self._table_builder.table.split(aw, ah)
         else:
             return []
+
+
+class _PdfTableBuilder(object):
+    def __init__(self, table_formatter, valign, halign):
+        self.table_formatter = table_formatter
+        self.data = table_formatter.formatted_values.values.tolist()
+        self.style = TableStyle(table_formatter.style_cmds)
+        self.valign = valign
+        self.halign = halign
+        # Set by the rendering process
+        self.table = None
+        self.col_widths = None
+        self.row_heights = None
+        self.width = None
+        self.height = None
+
+    nrows = property(lambda self: len(self.data))
+    ncols = property(lambda self: len(self.data[0]))
+
+    def build(self, aw, ah):
+        tf = self.table_formatter
+        self.col_widths = widths = tf.resolve_col_widths(aw)
+        self.row_heights = heights = tf.resolve_row_heights(ah)
+        self.table = table = Table(self.data, colWidths=widths, rowHeights=heights, style=self.style,
+                                   vAlign=self.valign, hAlign=self.halign, repeatCols=False, repeatRows=True)
+        w, h = table.wrap(aw, ah)
+        self.width = w
+        self.height = h
+
+    def force_to_fit(self, aw=None, ah=None):
+        def _guess_widths():
+            maxchars = self.table_formatter.formatted_values.apply(lambda x: x.astype(str).str.len().max() or 1)
+            pcts = maxchars / maxchars.sum()
+            return list(self.width * pcts)
+
+        def _guess_heights():
+            return self.row_heights or [self.height / self.nrows] * self.nrows
+
+        if (aw and aw != self.width) or (ah and ah != self.height):
+            widths = self.col_widths or _guess_widths()
+            heights = self.row_heights or _guess_heights()
+
+            if aw and self.width != aw:
+                extra = aw - self.width
+                total = sum(widths)
+                widths = [w + extra * w / total for w in widths]
+            if ah and self.height != ah:
+                adj = (ah - self.height) / self.nrows
+                heights = [h + adj for h in heights]
+
+            self.table = table = Table(self.data, colWidths=widths, rowHeights=heights, style=self.style,
+                                       vAlign=self.valign, hAlign=self.halign, repeatCols=False, repeatRows=True)
+            w, h = table.wrap(aw or self.width, ah or self.height)
+            self.width = w
+            self.height = h
+
+    def resize_to_ratio(self, ratio, freeze_cols=False, freeze_rows=False):
+        """Resize the columns or rows to match the specified ratio"""
+        if freeze_rows and freeze_cols:
+            raise ValueError('freeze_rows and freeze_cols cannot both be True')
+
+        tratio = self.width / self.height
+        if tratio > ratio or freeze_cols:
+            height = self.width / ratio
+            self.force_to_fit(ah=height)
+        elif tratio < ratio or freeze_rows:
+            width = self.height * ratio
+            self.force_to_fit(aw=width)
+
+    def scale(self, canv, aw, ah):
+        w, h = self.width, self.height
+        if aw != w or ah != h:
+            self.table = tmp = DynamicKeepInFrame(self.table, maxWidth=aw, maxHeight=ah, hAlign=self.halign,
+                                                  vAlign=self.valign)
+            self.width, self.height = tmp.wrapOn(canv, aw, ah)
+
+    def truncate(self, canv, aw, ah):
+        if not isinstance(self.table, KeepInFrame):
+            if self.width > aw or self.height > ah:
+                self.table = KeepInFrame(aw, ah, content=[self.table], mode='truncate', hAlign=self.halign, vAlign=self.valign)
+                self.table.wrapOn(canv, aw, ah)
+                self.width = aw
+                self.height = ah
+
+
+
+

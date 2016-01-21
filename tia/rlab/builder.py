@@ -5,7 +5,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle, TA_CENTER
 from reportlab.lib import units
 from reportlab.lib.colors import HexColor
 from reportlab.platypus.flowables import Flowable, HRFlowable
-from tia.rlab.table import TableFormatter
+from tia.rlab.table import DynamicTable
 
 import numpy as np
 
@@ -155,6 +155,10 @@ class PdfBuilder(object):
         if isinstance(doc_or_path, basestring):
             self.path = doc_or_path
             doc = self.build_doc(doc_or_path, pagesize=pagesize, showBoundary=showBoundary)
+        elif not isinstance(doc_or_path, BaseDocTemplate):
+            raise ValueError('doc_or_path must be file path or BaseDocTemplate object')
+        else:
+            doc = doc_or_path
 
         self.doc = doc
         self.pagesize = doc.pagesize
@@ -251,17 +255,30 @@ class PdfBuilder(object):
                 self.story.append(FrameBreak())
         return self
 
-    def define_simple_grid_template(self, template_id, nrows, ncols):
-        """Define a simple grid template. This will define nrows*ncols frames, which will be indexed starting with '0,0'
-            and using numpy style indexing. So '0,1' is row 0 , col 1"""
+    def define_simple_grid_template(self, template_id, nrows, ncols, sequential=False):
+        """
+
+        :param template_id: Name of template
+        :param nrows: number of rows in the grid
+        :param ncols: number of cols in the grid
+        :param sequential: if True, then reference frame with a single number so if grid is 3x3, then row 1, col2 is '3'
+                            if False, then reference frame with numpy style indexing so if grid is 3x3 then row 1, col 2 is '0,1'
+        :return:
+        """
         template = GridTemplate(template_id, nrows, ncols)
-        [template.define_frame('%s,%s' % (i, j), template[i, j]) for i in range(nrows) for j in range(ncols)]
+        if sequential:
+            [template.define_frame('%s' % (i*ncols+j), template[i, j]) for i in range(nrows) for j in range(ncols)]
+        else:
+            [template.define_frame('%s,%s' % (i, j), template[i, j]) for i in range(nrows) for j in range(ncols)]
         template.register(self)
         return self
 
-    def table_formatter(self, dataframe, inc_header=1, inc_index=1):
-        """Return a table formatter for the dataframe. Saves the user the need to import this class"""
-        return TableFormatter(dataframe, inc_header=inc_header, inc_index=inc_index)
+    #def table_formatter(self, dataframe, inc_header=1, inc_index=1):
+    #    """Return a table formatter for the dataframe. Saves the user the need to import this class"""
+    #    return TableFormatter(dataframe, inc_header=inc_header, inc_index=inc_index)
+
+    def new_table(self, *args, **kwargs):
+        return DynamicTable(*args, **kwargs)
 
     def save(self):
         if isinstance(self.story[-1], PageBreak):

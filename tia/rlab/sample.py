@@ -40,8 +40,8 @@ def sample1():
     gt.register(pdf)
 
     # Build the pdf tables to marry with the template
-    def make_builder(hdr=1, idx=1, cstyles=None):
-        tf = TableFormatter(aggdf, inc_header=hdr, inc_index=idx)
+    def make_table(hdr=1, idx=1, cstyles=None):
+        tf = DynamicTable(aggdf, inc_header=hdr, inc_index=idx)
         tf.apply_default_style(index_override={'BACKGROUND': colors.beige})
         tf.header.detect_colspans()
         tf.header.apply_style('ALIGN', 'CENTER')
@@ -65,7 +65,7 @@ def sample1():
             hdr = 'Index=%s Header=%s Color=%s' % (offon(ion), offon(hon), offon(cstyle is not None))
             data = {
                 'HEADER': Paragraph(hdr, getSampleStyleSheet()['Normal']),
-                'TBL': make_builder(hon, ion, cstyle).build(),
+                'TBL': make_table(hon, ion, cstyle),
             }
             pdf.build_page('T1', data)
     pdf.save()
@@ -91,9 +91,9 @@ def sample_long_table():
     })
     gt.register(pdf)
 
-    tf = TableFormatter(df)
+    tf = DynamicTable(df)
     tf.apply_default_style()
-    pdf.build_page('T1', {'HEADER': pdf.para('HEADER'), 'TBL': tf.build()})
+    pdf.build_page('T1', {'HEADER': pdf.para('HEADER'), 'TBL': tf})
     pdf.save()
     print pdf_path
 
@@ -110,9 +110,9 @@ def sample_wide_table():
         'TBL': gt[10:],
     })
     gt.register(pdf)
-    tf = TableFormatter(df)
+    tf = DynamicTable(df, action=DynamicTable.Actions.ResizeToRatioAndScale)
     tf.apply_default_style()
-    pdf.build_page('T1', {'HEADER': pdf.para('HEADER'), 'TBL': tf.build()})
+    pdf.build_page('T1', {'HEADER': pdf.para('HEADER'), 'TBL': tf})
     pdf.save()
     print pdf_path
 
@@ -129,11 +129,11 @@ def sample_dyn_col_row_table():
         'TBL': gt[10:],
     })
     gt.register(pdf)
-    tf = TableFormatter(df)
+    tf = DynamicTable(df)
     tf.apply_default_style()
     tf.set_col_widths(pcts=[.2, .1, .2, .3, .4])
     tf.set_row_heights(pcts=[.2, .1, .2, .3, .4])
-    pdf.build_page('T1', {'HEADER': pdf.para('HEADER'), 'TBL': tf.build()})
+    pdf.build_page('T1', {'HEADER': pdf.para('HEADER'), 'TBL': tf})
     pdf.save()
     print pdf_path
 
@@ -153,10 +153,10 @@ def sample_multi_page():
         'TBL': gt[10:],
     })
     gt.register(pdf)
-    tf = TableFormatter(df)
+    tf = DynamicTable(df)
     tf.apply_default_style()
     tf.set_col_widths(pcts=[.2, .1, .2, .3, .4])
-    pdf.build_page('T1', {'HEADER': pdf.para('HEADER'), 'TBL': tf.build(shrink=None)})
+    pdf.build_page('T1', {'HEADER': pdf.para('HEADER'), 'TBL': tf})
     pdf.save()
     print pdf_path
 
@@ -172,29 +172,29 @@ def sample_heatmap():
         'TBL': gt[10:],
     })
     gt.register(pdf)
-    tf = TableFormatter(df)
-    tf.apply_default_style()
+    tf = DynamicTable(df)
+    #tf.apply_default_style()
+    tf.apply_basic_style()
     tf.cells.heat_map()
-    pdf.build_page('T1', {'HEADER': pdf.para('ALL CELLS'), 'TBL': tf.build(shrink=None)})
-    tf = TableFormatter(df)
+    pdf.build_page('T1', {'HEADER': pdf.para('ALL CELLS'), 'TBL': tf})
+    tf = DynamicTable(df)
     tf.apply_default_style()
     tf.cells.iloc[:, 0].heat_map()
-    pdf.build_page('T1', {'HEADER': pdf.para('First Column'), 'TBL': tf.build(shrink=None)})
-    tf = TableFormatter(df)
+    pdf.build_page('T1', {'HEADER': pdf.para('First Column'), 'TBL': tf})
+    tf = DynamicTable(df)
     tf.apply_default_style()
     # change font for fun
     tf.cells.iloc[0, :].heat_map(font_cmap='Greys')
-    pdf.build_page('T1', {'HEADER': pdf.para('First Row'), 'TBL': tf.build(shrink=None)})
+    pdf.build_page('T1', {'HEADER': pdf.para('First Row'), 'TBL': tf})
     pdf.save()
     print pdf_path
 
 def runall():
-    sample1()
-    sample_long_table()
+    #sample1()
+    #sample_long_table()
     sample_wide_table()
-    sample_dyn_col_row_table()
-    #sample_multi_page()
-    sample_heatmap()
+    #sample_dyn_col_row_table()
+    #sample_heatmap()
 
 if __name__ == '__main__':
     runall()

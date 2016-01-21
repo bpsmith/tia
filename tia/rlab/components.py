@@ -6,6 +6,7 @@ from pdfrw.buildxobj import pagexobj
 from pdfrw.toreportlab import makerl
 from reportlab.platypus import Flowable, KeepInFrame, Image
 from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
+from reportlab.rl_config import _FUZZ
 
 
 __all__ = ['PdfImage', 'DynamicPdfImage', 'DynamicImage', 'DynamicKeepInFrame', 'new_dynamic_image']
@@ -17,7 +18,9 @@ class PdfImage(Flowable):
     Based on the vectorpdf extension in rst2pdf (http://code.google.com/p/rst2pdf/)
     """
 
-    def __init__(self, filename_or_object, width=None, height=None, kind='direct'):
+    def __init__(self, filename_or_object, width=None, height=None, kind='direct', border_color=None):
+        self.border_color = border_color
+
         if hasattr(filename_or_object, 'read'):
             filename_or_object.seek(0)
         page = PdfReader(filename_or_object, decompress=False).pages[0]
@@ -68,30 +71,42 @@ class PdfImage(Flowable):
         canv.translate(x, y)
         canv.scale(xscale, yscale)
         canv.doForm(xobj_name)
+        if self.border_color:
+            canv.setStrokeColor(self.border_color)
+            canv.rect(0, 0, self.drawWidth / xscale, self.drawHeight / yscale)
         canv.restoreState()
 
 
 class DynamicPdfImage(PdfImage):
-    def __init__(self, filename_or_object, hAlign='CENTER'):
-        PdfImage.__init__(self, filename_or_object, kind='dynamic')
+    def __init__(self, filename_or_object, hAlign='CENTER', border_color=None):
+        PdfImage.__init__(self, filename_or_object, kind='dynamic', border_color=border_color)
         self.hAlign = hAlign
 
 
 class DynamicKeepInFrame(KeepInFrame):
-    def __init__(self, content=[], maxWidth=0, maxHeight=0, zoom=1, **kwargs):
-        if content and not hasattr(content, '__iter__'):
-            raise ValueError('content expected to be a list of flowables')
+    def __init__(self, content, maxWidth=0, maxHeight=0, zoom=True, **kwargs):
+        """
+        :param content: Flowable(s) to show within the Frame
+        :param maxHeight:
+        :param zoom:
+        :param kwargs:
+        :return:
+        """
+        content = content or []
+        content = content if hasattr(content, '__iter__') else [content]
         self.zoom = zoom
+        self.mh = maxHeight
+        self.mw = maxWidth
         KeepInFrame.__init__(self, maxWidth, maxHeight, content=content, **kwargs)
 
-    def wrap(self, awidth, aheight):
-        self.maxHeight = aheight
-        self.maxWidth = awidth
-        w, h = KeepInFrame.wrap(self, awidth, aheight)
-        if w < awidth and h < aheight:
-            self._scale = max(w / awidth, h / aheight)
+    def wrap(self, aw, ah):
+        self.maxHeight = min(self.mh or ah, ah)
+        self.maxWidth = min(self.mw or aw, aw)
+        w, h = KeepInFrame.wrap(self, aw, ah)
+        zoom = self.zoom
+        if zoom and w < (aw - _FUZZ) and h < (ah - _FUZZ):
+           self._scale = max(w / aw, h / ah)
         return w, h
-
 
 class DynamicImage(Image):
     def __init__(self, path):
