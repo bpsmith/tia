@@ -68,6 +68,8 @@ class XmlHelper(object):
         """ convert the specified element as a python value """
         dtype = ele.datatype()
         # print '%s = %s' % (ele.name(), dtype)
+        if ele.isNull():
+            return None
         if dtype in (1, 2, 3, 4, 5, 6, 7, 9, 12):
             # BOOL, CHAR, BYTE, INT32, INT64, FLOAT32, FLOAT64, BYTEARRAY, DECIMAL)
             return ele.getValue()
@@ -838,5 +840,3 @@ class SyncSubscription(object):
         else:
             logger.info('next(): ignoring event %s' % evt.eventType())
             self.check_for_updates(timeout)
-
-
