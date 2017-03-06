@@ -360,12 +360,12 @@ class HistoricalDataRequest(Request):
         fields : string or list
         start : start date (if None then use 1 year ago)
         end : end date (if None then use today)
-        period : ('DAILY', 'WEEKLY', 'MONTHLY', 'QUARTERLY', 'SEMI-ANNUAL', 'YEARLY')
+        period : ('DAILY', 'WEEKLY', 'MONTHLY', 'QUARTERLY', 'SEMI_ANNUALLY', 'YEARLY')
         ignore_field_errors : bool
         ignore_security_errors : bool
         """
         Request.__init__(self, ignore_security_error=ignore_security_error, ignore_field_error=ignore_field_error)
-        assert period in ('DAILY', 'WEEKLY', 'MONTHLY', 'QUARTERLY', 'SEMI-ANNUAL', 'YEARLY')
+        assert period in ('DAILY', 'WEEKLY', 'MONTHLY', 'QUARTERLY', 'SEMI_ANNUALLY', 'YEARLY')
         self.symbols = isinstance(symbols, basestring) and [symbols] or symbols
         self.fields = isinstance(fields, basestring) and [fields] or fields
         self.overrides = overrides or {}
@@ -517,6 +517,7 @@ class IntrdayBarRequest(Request):
         if is_final:
             idx = response.pop('time')
             self.response = DataFrame(response, columns=['open', 'high', 'low', 'close', 'volume', 'events'], index=idx)
+
 
 class Terminal(object):
     @classmethod
