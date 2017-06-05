@@ -45,7 +45,7 @@ Utils
 - [bloomberg](http://www.bloomberglabs.com/api/libraries/)
 
 
-##Installation
+## Installation
 
 To install tia, simply:
 
