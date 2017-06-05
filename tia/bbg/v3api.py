@@ -277,7 +277,7 @@ class HistoricalDataRequest(Request):
     fields: bbg field name(s)
     start: (optional) date, date string , or None. If None, defaults to 1 year ago.
     end: (optional) date, date string, or None. If None, defaults to today.
-    period: (optional) periodicity of data [DAILY, WEEKLY, MONTHLY, QUARTERLY, SEMI-ANNUAL, YEARLY]
+    period: (optional) periodicity of data [DAILY, WEEKLY, MONTHLY, QUARTERLY, SEMI_ANNUALLY, YEARLY]
     ignore_security_error: If True, ignore exceptions caused by invalid sids
     ignore_field_error: If True, ignore exceptions caused by invalid fields
     period_adjustment: (ACTUAL, CALENDAR, FISCAL)
@@ -300,7 +300,7 @@ class HistoricalDataRequest(Request):
         Request.__init__(self, '//blp/refdata', ignore_security_error=ignore_security_error,
                          ignore_field_error=ignore_field_error)
         period = period or 'DAILY'
-        assert period in ('DAILY', 'WEEKLY', 'MONTHLY', 'QUARTERLY', 'SEMI-ANNUAL', 'YEARLY')
+        assert period in ('DAILY', 'WEEKLY', 'MONTHLY', 'QUARTERLY', 'SEMI_ANNUALLY', 'YEARLY')
         self.is_single_sid = is_single_sid = isinstance(sids, basestring)
         self.is_single_field = is_single_field = isinstance(fields, basestring)
         self.sids = is_single_sid and [sids] or list(sids)
