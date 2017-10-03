@@ -37,7 +37,7 @@ class XmlHelper(object):
         while iter.Next():
             msg = iter.Message
             if DEBUG:
-                print msg.Print
+                print(msg.Print)
             if msg.AsElement.HasElement('responseError'):
                 raise Exception(msg.AsElement.GetValue('message'))
             yield msg
@@ -167,11 +167,11 @@ class XmlHelper(object):
 
 
 def debug_event(evt):
-    print 'unhandled event: %s' % evt.EventType
+    print('unhandled event: %s' % evt.EventType)
     if evt.EventType in [constants.RESPONSE, constants.PARTIAL_RESPONSE]:
-        print 'messages:'
+        print('messages:')
         for msg in XmlHelper.message_iter(evt):
-            print msg.Print
+            print(msg.Print)
 
 
 class ResponseHandler(object):
@@ -208,7 +208,7 @@ class ResponseHandler(object):
         return self.exc_info is not None
 
     def raise_deferred_exception(self):
-        raise self.exc_info[1], None, self.exc_info[2]
+        raise self.exc_info[1].with_traceback(self.exc_info[2])
 
     def do_cleanup(self):
         self.waiting = False
@@ -259,7 +259,7 @@ class Request(object):
     def apply_overrides(request, omap):
         """ add the given overrides (omap) to bloomberg request """
         if omap:
-            for k, v in omap.iteritems():
+            for k, v in omap.items():
                 o = request.GetElement('overrides').AppendElment()
                 o.SetElement('fieldId', k)
                 o.SetElement('value', v)
@@ -273,8 +273,8 @@ class ReferenceDataRequest(Request):
         """
         assert response_type in ('frame', 'map')
         Request.__init__(self, ignore_security_error=ignore_security_error, ignore_field_error=ignore_field_error)
-        self.symbols = isinstance(symbols, basestring) and [symbols] or symbols
-        self.fields = isinstance(fields, basestring) and [fields] or fields
+        self.symbols = isinstance(symbols, str) and [symbols] or symbols
+        self.fields = isinstance(fields, str) and [fields] or fields
         self.overrides = overrides or {}
         # response related
         self.response = {} if response_type == 'map' else defaultdict(list)
@@ -284,7 +284,7 @@ class ReferenceDataRequest(Request):
         fmtargs = dict(clz=self.__class__.__name__,
                        symbols=','.join(self.symbols),
                        fields=','.join(self.fields),
-                       overrides=','.join(['%s=%s' % (k, v) for k, v in self.overrides.iteritems()]),
+                       overrides=','.join(['%s=%s' % (k, v) for k, v in self.overrides.items()]),
                        rt=self.response_type,
                        ise=self.ignore_security_error and True or False,
                        ife=self.ignore_field_error and True or False,
@@ -366,8 +366,8 @@ class HistoricalDataRequest(Request):
         """
         Request.__init__(self, ignore_security_error=ignore_security_error, ignore_field_error=ignore_field_error)
         assert period in ('DAILY', 'WEEKLY', 'MONTHLY', 'QUARTERLY', 'SEMI_ANNUALLY', 'YEARLY')
-        self.symbols = isinstance(symbols, basestring) and [symbols] or symbols
-        self.fields = isinstance(fields, basestring) and [fields] or fields
+        self.symbols = isinstance(symbols, str) and [symbols] or symbols
+        self.fields = isinstance(fields, str) and [fields] or fields
         self.overrides = overrides or {}
         if start is None:
             start = datetime.today() - timedelta(365)
@@ -430,7 +430,7 @@ class HistoricalDataRequest(Request):
     def response_as_single(self, copy=0):
         """ convert the response map to a single data frame with Multi-Index columns """
         arr = []
-        for sid, frame in self.response.iteritems():
+        for sid, frame in self.response.items():
             if copy:
                 frame = frame.copy()
             'security' not in frame and frame.insert(0, 'security', sid)
@@ -458,7 +458,7 @@ class IntrdayBarRequest(Request):
         """
         Request.__init__(self)
         assert event in ('TRADE', 'BID', 'ASK', 'BEST_BID', 'BEST_ASK')
-        assert isinstance(symbol, basestring)
+        assert isinstance(symbol, str)
         if start is None:
             start = datetime.today() - timedelta(30)
         if end is None:
@@ -551,56 +551,56 @@ if __name__ == '__main__':
     m = pandas.datetools.BMonthBegin(-2).apply(datetime.now())
 
     def banner(msg):
-        print '*' * 25
-        print msg
-        print '*' * 25
+        print('*' * 25)
+        print(msg)
+        print('*' * 25)
 
     banner('ReferenceDataRequest: single security, single field, frame response')
     req = ReferenceDataRequest('msft us equity', 'px_last', response_type='frame')
-    print req.execute().response
+    print(req.execute().response)
 
     banner('ReferenceDataRequest: single security, single field, map response')
     req = ReferenceDataRequest('msft us equity', 'px_last', response_type='map')
-    print req.execute().response
+    print(req.execute().response)
 
     banner('ReferenceDataRequest: multi-security, multi-field')
     req = ReferenceDataRequest(['eurusd curncy', 'msft us equity'], ['px_open', 'px_last'])
-    print req.execute().response
+    print(req.execute().response)
 
     banner('ReferenceDataRequest: single security, multi-field (with bulk), frame response')
     req = ReferenceDataRequest('eurusd curncy', ['px_last', 'fwd_curve'])
     req.execute()
-    print req.response
+    print(req.response)
     # DataFrame within a DataFrame
-    print req.response.fwd_curve[0].tail()
+    print(req.response.fwd_curve[0].tail())
 
     banner('ReferenceDataRequest: multi security, multi-field, bad field')
     req = ReferenceDataRequest(['eurusd curncy', 'msft us equity'], ['px_last', 'fwd_curve'], ignore_field_error=1)
     req.execute()
-    print req.response
+    print(req.response)
 
     banner('HistoricalDataRequest: multi security, multi-field, daily data')
     req = HistoricalDataRequest(['eurusd curncy', 'msft us equity'], ['px_last', 'px_open'], start=d)
     req.execute()
-    print req.response
-    print '--------- AS SINGLE TABLE ----------'
-    print req.response_as_single()
+    print(req.response)
+    print('--------- AS SINGLE TABLE ----------')
+    print(req.response_as_single())
 
     banner('HistoricalDataRequest: multi security, multi-field, weekly data')
     req = HistoricalDataRequest(['eurusd curncy', 'msft us equity'], ['px_last', 'px_open'], start=m, period='WEEKLY')
     req.execute()
-    print req.response
-    print '--------- AS SINGLE TABLE ----------'
-    print req.response_as_single()
-    print '--------- AS PANEL (id indexed) ----------'
-    print req.response_as_panel()
-    print '--------- AS PANEL (field indexed) ----------'
-    print req.response_as_panel(swap=1)
+    print(req.response)
+    print('--------- AS SINGLE TABLE ----------')
+    print(req.response_as_single())
+    print('--------- AS PANEL (id indexed) ----------')
+    print(req.response_as_panel())
+    print('--------- AS PANEL (field indexed) ----------')
+    print(req.response_as_panel(swap=1))
 
     banner('IntrdayBarRequest: every hour')
     req = IntrdayBarRequest('eurusd curncy', 60, start=d)
     req.execute()
-    print req.response[-10:]
+    print(req.response[-10:])
 
     #
     # HOW TO

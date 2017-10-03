@@ -39,7 +39,7 @@ def guess_freq(index):
         raise Exception('cannot guess frequency with less than 3 items')
     else:
         lb = min(7, len(index))
-        idx_zip = lambda: zip(index[-lb:-1], index[-(lb-1):])
+        idx_zip = lambda: list(zip(index[-lb:-1], index[-(lb-1):]))
 
         diff = min([t2 - t1 for t1, t2, in idx_zip()])
         if diff.days <= 1:
@@ -73,7 +73,7 @@ def periodicity(freq_or_frame):
             return factor / abs(freq_or_frame.n)
         else:
             raise Exception('Failed to determine periodicity. No factor mapping for %s' % freq_or_frame)
-    elif isinstance(freq_or_frame, basestring):
+    elif isinstance(freq_or_frame, str):
         factor = PER_YEAR_MAP.get(freq_or_frame, None)
         if factor is not None:
             return factor
@@ -107,7 +107,7 @@ def _resolve_periods_in_year(scale, frame):
     """
     if scale is None:
         return periodicity(frame)
-    elif isinstance(scale, basestring):
+    elif isinstance(scale, str):
         return periodicity(scale)
     elif np.isscalar(scale):
         return scale
@@ -148,7 +148,7 @@ def returns(prices, method='simple', periods=1, fill_method='pad', limit=None, f
             return data
         else:
             return pd.DataFrame(
-                {name: returns(col, method, periods, fill_method, limit, freq) for name, col in prices.iteritems()},
+                {name: returns(col, method, periods, fill_method, limit, freq) for name, col in prices.items()},
                 columns=prices.columns,
                 index=prices.index)
 
@@ -446,7 +446,7 @@ def expanding_percentileofscore(series, min_periods=None):
         return pd.expanding_apply(notnull, _percentile, min_periods=min_periods).reindex(series.index)
 
 
-def hurst_exponent(px, lags=range(2, 100)):
+def hurst_exponent(px, lags=list(range(2, 100))):
     """
     describe the prices
     http://www.quantstart.com/articles/Basics-of-Statistical-Mean-Reversion-Testing

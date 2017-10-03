@@ -18,9 +18,9 @@ def _dly_to_ltd(frame, dly_cols):
     sums = frame[dly_cols].cumsum()
     # BUG when copying a single row, oddly
     if len(frame.index) == 1:
-        frame.iloc[0, ilocs] = sums.iloc[0, range(len(dly_cols))]
+        frame.iloc[0, ilocs] = sums.iloc[0, list(range(len(dly_cols)))]
     else:
-        frame.iloc[:, ilocs] = sums.iloc[:, range(len(dly_cols))]
+        frame.iloc[:, ilocs] = sums.iloc[:, list(range(len(dly_cols)))]
     return frame
 
 
@@ -141,7 +141,7 @@ class OpenAverageProfitAndLossCalculator(object):
             data[TPL.RPL] = rpl
             data[TPL.UPL] = upl
             data[TPL.PL] = tpl
-            ltd_frame = pd.DataFrame(data, columns=data.keys())
+            ltd_frame = pd.DataFrame(data, columns=list(data.keys()))
             return ltd_frame
 
 
@@ -490,7 +490,7 @@ class ProfitAndLoss(object):
         if ltd:
             results['ltd'] = summary_fct(self)
 
-        return pd.DataFrame(results, index=results.values()[0].keys()).T
+        return pd.DataFrame(results, index=list(results.values())[0].keys()).T
 
 
 class TxnProfitAndLoss(ProfitAndLoss):

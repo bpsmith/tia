@@ -7,7 +7,7 @@ import os
 def send_outlook_email(to, subject, body, attachments=None, cc=None, bcc=None, is_html=0):
     """ Send an email using your local outlook client """
     import win32com.client
-    asarr = lambda v: None if not v else isinstance(v, basestring) and [v] or v
+    asarr = lambda v: None if not v else isinstance(v, str) and [v] or v
     def update_recipients(robj, users, type):
         users = asarr(to)
         if users:
@@ -32,7 +32,7 @@ def send_outlook_email(to, subject, body, attachments=None, cc=None, bcc=None, i
     else:
         msg.Body = body
 
-    map(lambda fpath: msg.Attachments.Add(fpath), attachments or [])
+    list(map(lambda fpath: msg.Attachments.Add(fpath), attachments or []))
     msg.Send()
 
 
@@ -62,7 +62,7 @@ class WinSCPBatch(object):
         ----------
         filemap: dict, (remote_filename -> local_filename)
         """
-        [self.add_download(k, v) for k, v in filemap.iteritems()]
+        [self.add_download(k, v) for k, v in filemap.items()]
 
     def add_upload(self, remote, local):
         cmd = 'put %s %s' % (self.double_quote(local), self.double_quote(remote))
@@ -75,7 +75,7 @@ class WinSCPBatch(object):
         ----------
         filemap: dict, (remote_filename -> local_filename)
         """
-        [self.add_upload(k, v) for k, v in filemap.iteritems()]
+        [self.add_upload(k, v) for k, v in filemap.items()]
 
     def add_cd(self, remote_dir):
         cmd = 'cd %s' % remote_dir

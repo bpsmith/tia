@@ -69,7 +69,7 @@ def sample1():
             }
             pdf.build_page('T1', data)
     pdf.save()
-    print pdf_path
+    print(pdf_path)
 
 
 def sample_long_table():
@@ -95,7 +95,7 @@ def sample_long_table():
     tf.apply_default_style()
     pdf.build_page('T1', {'HEADER': pdf.para('HEADER'), 'TBL': tf.build()})
     pdf.save()
-    print pdf_path
+    print(pdf_path)
 
 
 def sample_wide_table():
@@ -114,7 +114,7 @@ def sample_wide_table():
     tf.apply_default_style()
     pdf.build_page('T1', {'HEADER': pdf.para('HEADER'), 'TBL': tf.build()})
     pdf.save()
-    print pdf_path
+    print(pdf_path)
 
 
 def sample_dyn_col_row_table():
@@ -135,7 +135,7 @@ def sample_dyn_col_row_table():
     tf.set_row_heights(pcts=[.2, .1, .2, .3, .4])
     pdf.build_page('T1', {'HEADER': pdf.para('HEADER'), 'TBL': tf.build()})
     pdf.save()
-    print pdf_path
+    print(pdf_path)
 
 
 def sample_multi_page():
@@ -158,7 +158,7 @@ def sample_multi_page():
     tf.set_col_widths(pcts=[.2, .1, .2, .3, .4])
     pdf.build_page('T1', {'HEADER': pdf.para('HEADER'), 'TBL': tf.build(shrink=None)})
     pdf.save()
-    print pdf_path
+    print(pdf_path)
 
 
 def sample_heatmap():
@@ -186,7 +186,7 @@ def sample_heatmap():
     tf.cells.iloc[0, :].heat_map(font_cmap='Greys')
     pdf.build_page('T1', {'HEADER': pdf.para('First Row'), 'TBL': tf.build(shrink=None)})
     pdf.save()
-    print pdf_path
+    print(pdf_path)
 
 def runall():
     sample1()

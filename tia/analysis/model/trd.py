@@ -46,7 +46,7 @@ class TradeBlotter(object):
         return self._live_qty != 0
 
     def next_tid(self):
-        return self.tidgen.next()
+        return next(self.tidgen)
 
     def _order(self, qty, px, fees=0, **kwargs):
         if not self.ts:

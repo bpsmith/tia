@@ -96,7 +96,7 @@ def find_locations(index, match_value_or_fct, levels=None, max_matches=0):
     fct = match_value_or_fct
     if not callable(fct):
         match_value = match_value_or_fct
-        if not isinstance(match_value, basestring) and hasattr(match_value, '__iter__'):
+        if not isinstance(match_value, str) and hasattr(match_value, '__iter__'):
             fct = lambda v: v in match_value
         else:
             fct = lambda v: v == match_value_or_fct
@@ -111,7 +111,7 @@ def find_locations(index, match_value_or_fct, levels=None, max_matches=0):
 
 def level_iter(index, levels=None):
     if levels is None:
-        levels = range(index.nlevels)
+        levels = list(range(index.nlevels))
     elif np.isscalar(levels):
         levels = [levels]
 
@@ -396,7 +396,7 @@ class RegionFormatter(object):
         """
         is_list_like = lambda arg: isinstance(arg, (list, tuple))
         is_first_param_list = lambda c: c in ('COLBACKGROUNDS', 'ROWBACKGROUNDS')
-        for cmd, args in cmdmap.iteritems():
+        for cmd, args in cmdmap.items():
             if not is_list_like(args):
                 args = [args]
             elif is_first_param_list(cmd) and is_list_like(args) and not is_list_like(args[0]):
@@ -462,12 +462,12 @@ class RegionFormatter(object):
         return self
 
     def apply_rowattrs(self, **kwargs):
-        for k, v in kwargs.iteritems():
+        for k, v in kwargs.items():
             self.parent.rowattrs.iloc[self.row_ilocs, k] = v
         return self
 
     def apply_colattrs(self, **kwargs):
-        for k, v in kwargs.iteritems():
+        for k, v in kwargs.items():
             self.parent.colattrs.loc[self.col_ilocs, k] = v
         return self
 
@@ -576,9 +576,9 @@ class RegionFormatter(object):
             carr = ['#d7191c', '#fdae61', '#ffffff', '#a6d96a', '#1a9641']
             cmap = LinearSegmentedColormap.from_list('default-heatmap', carr)
 
-        if isinstance(cmap, basestring):
+        if isinstance(cmap, str):
             cmap = get_cmap(cmap)
-        if isinstance(font_cmap, basestring):
+        if isinstance(font_cmap, str):
             font_cmap = get_cmap(font_cmap)
 
         vals = self.actual_values.astype(float)

@@ -53,7 +53,7 @@ def plot_return_on_dollar(rets, title='Return on $1', show_maxdd=0, figsize=None
     if show_maxdd:
         # find the max drawdown available by using original rets
         if isinstance(rets, pd.DataFrame):
-            iterator = rets.iteritems()
+            iterator = iter(rets.items())
         else:
             iterator = iter([('', rets)])
 

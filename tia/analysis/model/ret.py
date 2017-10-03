@@ -478,4 +478,4 @@ class Performance(object):
         if ltd:
             results['ltd'] = summary_fct(self)
 
-        return pd.DataFrame(results, index=results.values()[0].keys()).T
+        return pd.DataFrame(results, index=list(results.values())[0].keys()).T
