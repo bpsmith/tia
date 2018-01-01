@@ -123,7 +123,7 @@ class Instrument(CostCalculator, EodMarketData):
         from tia.analysis.model.trd import TradeBlotter
         from tia.analysis.model.port import SingleAssetPortfolio
 
-        getpx = lambda how, dt: how if not isinstance(how, basestring) else self.pxs.frame[how].asof(dt)
+        getpx = lambda how, dt: how if not isinstance(how, str) else self.pxs.frame[how].asof(dt)
 
         open_dt = open_dt or self.pxs.frame.index[0]
         open_px = getpx(open_px, open_dt)
@@ -159,7 +159,7 @@ class Instruments(object):
         self._instruments = self._instruments.append(pd.Series({ins.sid: ins}))
 
     def __getitem__(self, key):
-        if isinstance(key, basestring):
+        if isinstance(key, str):
             return self._instruments[key]
         elif isinstance(key, int):
             return self._instruments.iloc[key]
@@ -173,12 +173,12 @@ class Instruments(object):
         return self._instruments.__iter__()
 
     def iteritems(self):
-        return self._instruments.iteritems()
+        return iter(self._instruments.items())
 
     @property
     def frame(self):
-        kvals = {sid: ins.pxs.frame for sid, ins in self._instruments.iteritems()}
-        return pd.concat(kvals.values(), axis=1, keys=kvals.keys())
+        kvals = {sid: ins.pxs.frame for sid, ins in self._instruments.items()}
+        return pd.concat(list(kvals.values()), axis=1, keys=list(kvals.keys()))
 
     def __repr__(self):
         return '[{0}]'.format(','.join([repr(i) for i in self._instruments]))
@@ -212,7 +212,7 @@ def get_dividends_yahoo(sid, start, end):
 
 
 def load_yahoo_stock(sids, start=None, end=None, dvds=True):
-    if hasattr(sids, '__iter__') and not isinstance(sids, basestring):
+    if hasattr(sids, '__iter__') and not isinstance(sids, str):
         return Instruments([load_yahoo_stock(sid, start=start, end=end, dvds=dvds) for sid in sids])
     else:
         sid = sids
@@ -240,7 +240,7 @@ def load_yahoo_stock(sids, start=None, end=None, dvds=True):
 
 
 def _resolve_accessor(sid_or_accessor):
-    if isinstance(sid_or_accessor, basestring):
+    if isinstance(sid_or_accessor, str):
         from tia.bbg import BbgDataManager
 
         mgr = BbgDataManager()
@@ -351,7 +351,7 @@ class BloombergInstrumentLoader(object):
 
     def load(self, sids, start=None, end=None):
         # TODO - subclss Instrument with specified instrument type
-        if isinstance(sids, basestring):
+        if isinstance(sids, str):
             start = start or self.start
             end = end or self.end
             accessor = self.mgr[sids]

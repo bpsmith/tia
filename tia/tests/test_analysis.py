@@ -32,7 +32,7 @@ class TestAnalysis(unittest.TestCase):
         # Test txn frame
         port = SingleAssetPortfolio(sec, [t1, t2, t3, t4, t5, t6])
         txns = port.txns.frame
-        index = range(len(port.trades))
+        index = list(range(len(port.trades)))
         pdtest.assert_series_equal(txns.txn_qty, pd.Series([5., 2., -3., -4., -4, 4], index=index))
         pdtest.assert_series_equal(txns.open_val, pd.Series([-100., -160., -160. * 4./7., 0, 80, 0], index=index))
         pdtest.assert_series_equal(txns.txn_fees, pd.Series([-1., -1., -1., -1., 0, 0], index=index))

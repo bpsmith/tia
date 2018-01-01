@@ -17,11 +17,11 @@ class TestTable(unittest.TestCase):
     def test_span_iter(self):
         s = pd.Series([1, 1, 1, 3, 2, 2])
         items = list(tbl.span_iter(s))
-        self.assertEquals(items, [(0, 2), (4, 5)])
+        self.assertEqual(items, [(0, 2), (4, 5)])
         # reverse and ensure it does not break it
         s = s[::-1]
         items = list(tbl.span_iter(s))
-        self.assertEquals(items, [(0, 2), (4, 5)])
+        self.assertEqual(items, [(0, 2), (4, 5)])
 
     def test_level_iter(self):
         l1 = ['L_11', 'L_12']
@@ -30,15 +30,15 @@ class TestTable(unittest.TestCase):
         midx = pd.MultiIndex.from_arrays([l1, l2, l3], names=['1', '2', '3'])
         actual = list(tbl.level_iter(midx))
         expected = [(0, 0, 'L_11'), (0, 1, 'L_12'), (1, 0, 'L_21'), (1, 1, 'L_22'), (2, 0, 'L_31'), (2, 1, 'L_32')]
-        self.assertEquals(actual, expected)
+        self.assertEqual(actual, expected)
 
         actual = list(tbl.level_iter(midx, levels=[0, 2]))
         expected = [(0, 0, 'L_11'), (0, 1, 'L_12'), (2, 0, 'L_31'), (2, 1, 'L_32')]
-        self.assertEquals(actual, expected)
+        self.assertEqual(actual, expected)
 
         actual = list(tbl.level_iter(midx, levels=0))
         expected = [(0, 0, 'L_11'), (0, 1, 'L_12')]
-        self.assertEquals(actual, expected)
+        self.assertEqual(actual, expected)
 
     def test_region_formatter_iloc(self):
         tf = tbl.TableFormatter(self.df1)
@@ -72,13 +72,13 @@ class TestTable(unittest.TestCase):
     def test_detect_spans(self):
         tf = tbl.TableFormatter(self.mdf1)
         tf.header.detect_colspans()
-        self.assertEquals(['SPAN', (2, 0), (3, 0)], tf.style_cmds[0])
-        self.assertEquals(['SPAN', (4, 0), (5, 0)], tf.style_cmds[1])
+        self.assertEqual(['SPAN', (2, 0), (3, 0)], tf.style_cmds[0])
+        self.assertEqual(['SPAN', (4, 0), (5, 0)], tf.style_cmds[1])
 
         tf = tbl.TableFormatter(self.mdf1.T)
         tf.index.detect_rowspans()
-        self.assertEquals(['SPAN', (0, 2), (0, 3)], tf.style_cmds[0])
-        self.assertEquals(['SPAN', (0, 4), (0, 5)], tf.style_cmds[1])
+        self.assertEqual(['SPAN', (0, 2), (0, 3)], tf.style_cmds[0])
+        self.assertEqual(['SPAN', (0, 4), (0, 5)], tf.style_cmds[1])
 
     def test_match(self):
         tf = tbl.TableFormatter(self.mdf1)

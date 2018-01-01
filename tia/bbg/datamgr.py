@@ -13,7 +13,7 @@ import tia.util.log as log
 __all__ = ['DataManager', 'BbgDataManager', 'MemoryStorage', 'HDFStorage', 'CachedDataManager', 'Storage',
            'CacheOnlyDataManager', 'SidAccessor', 'MultiSidAccessor']
 
-_force_array = lambda x: isinstance(x, basestring) and [x] or x
+_force_array = lambda x: isinstance(x, str) and [x] or x
 
 
 class SidAccessor(object):
@@ -37,7 +37,7 @@ class SidAccessor(object):
         if self.mgr.sid_result_mode == 'frame':
             return frame
         else:
-            if isinstance(flds, basestring):
+            if isinstance(flds, str):
                 return frame.iloc[0, 0]
             else:
                 return frame.values[0].tolist()
@@ -114,7 +114,7 @@ class DataManager(object):
         raise NotImplementedError('must implement get_historical')
 
     def get_sid_accessor(self, sid, **overrides):
-        if isinstance(sid, basestring):
+        if isinstance(sid, str):
             return SidAccessor(sid, self, **overrides)
         else:
             return MultiSidAccessor(sid, self, **overrides)
@@ -151,10 +151,10 @@ class BbgDataManager(DataManager):
         end = end
         start = start
         frame = self.terminal.get_historical(sids, flds, start=start, end=end, period=period, **overrides).as_frame()
-        if isinstance(sids, basestring):
+        if isinstance(sids, str):
             return frame[sids]
         else:  # multi-indexed frame
-            if isinstance(flds, basestring):
+            if isinstance(flds, str):
                 frame.columns = frame.columns.droplevel(1)
             return frame
 
@@ -279,7 +279,7 @@ class CacheOnlyDataManager(DataManager):
         fstr = ','.join(flds)
         ostr = ''
         if overrides:
-            ostr = ', overrides=' + ','.join(['{0}={1}'.format(str(k), str(v)) for k, v in overrides.iteritems()])
+            ostr = ', overrides=' + ','.join(['{0}={1}'.format(str(k), str(v)) for k, v in overrides.items()])
         msg = 'Reference data for sids={0}, flds={1}{2}'.format(sstr, fstr, ostr)
         raise CacheMissError(msg)
 
@@ -319,7 +319,7 @@ class CachedDataManager(DataManager):
         self.dm.sid_result_mode = value
 
     def _cache_get_attribute(self, sids, flds, **overrides):
-        if isinstance(sids, basestring):
+        if isinstance(sids, str):
             key = (sids, 'attributes', overrides)
             vframe, userdata = self.storage.get(key)
             if vframe is not None:
@@ -369,7 +369,7 @@ class CachedDataManager(DataManager):
             # now just retrieve from cache
             data = self._cache_get_attribute(sids, flds, **overrides)
             # reindex and grab columns to sort
-            frame = pd.concat(data.values())
+            frame = pd.concat(list(data.values()))
             return frame
 
     def _date_only(self, ts_or_period):
@@ -381,8 +381,8 @@ class CachedDataManager(DataManager):
 
     def get_historical(self, sids, flds, start, end, period=None, **overrides):
         # TODO - Revisit date handling for caching
-        is_str = isinstance(sids, basestring)
-        is_fld_str = isinstance(flds, basestring)
+        is_str = isinstance(sids, str)
+        is_fld_str = isinstance(flds, str)
         flds = _force_array(flds)
         sids = _force_array(sids)
         end = (end and self._date_only(end)) or self._date_only(self.ts)
@@ -392,7 +392,7 @@ class CachedDataManager(DataManager):
         for sid in sids:
             key = (sid, 'historical', dict(period=period))
             if overrides:
-                    for k, v in overrides.iteritems():
+                    for k, v in overrides.items():
                         key[2][k] = v
 
             cached_frame, userdata = self.storage.get(key)
@@ -446,7 +446,7 @@ class CachedDataManager(DataManager):
         if is_str:
             return frames[sids[0]]
         else:
-            result = pd.concat(frames.values(), keys=frames.keys(), axis=1)
+            result = pd.concat(list(frames.values()), keys=list(frames.keys()), axis=1)
             if is_fld_str:
                 result.columns = result.columns.droplevel(1)
             return result

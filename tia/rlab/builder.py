@@ -106,7 +106,7 @@ class GridTemplate(object):
         self.gframes[alias] = grid_frame, frame_args
 
     def define_frames(self, alias_map):
-        for alias, value in alias_map.iteritems():
+        for alias, value in alias_map.items():
             if isinstance(value, GridFrame):
                 gf = value
                 frame_args = {}
@@ -119,7 +119,7 @@ class GridTemplate(object):
         rheight = builder.height / self.nrows
         cwidth = builder.width / self.ncols
         frames = []
-        for alias, (gframe, fargs) in self.gframes.iteritems():
+        for alias, (gframe, fargs) in self.gframes.items():
             rs, re, cs, ce = gframe.y0, gframe.y1, gframe.x0, gframe.x1
             # Flip since y-axis starting at bottom
             rs, re = abs(self.nrows - rs), abs(self.nrows - re)
@@ -152,7 +152,7 @@ class PdfBuilder(object):
 
     def __init__(self, doc_or_path, coverpage=None, pagesize=None, stylesheet=None, showBoundary=0):
         self.path = None
-        if isinstance(doc_or_path, basestring):
+        if isinstance(doc_or_path, str):
             self.path = doc_or_path
             doc = self.build_doc(doc_or_path, pagesize=pagesize, showBoundary=showBoundary)
 

@@ -183,11 +183,11 @@ class XmlHelper(object):
 
 
 def debug_event(evt):
-    print 'unhandled event: %s' % evt.EventType
+    print('unhandled event: %s' % evt.EventType)
     if evt.EventType in [blpapi.Event.RESPONSE, blpapi.Event.PARTIAL_RESPONSE]:
-        print 'messages:'
+        print('messages:')
         for msg in XmlHelper.message_iter(evt):
-            print msg.Print
+            print(msg.Print)
 
 
 class Request(object):
@@ -230,7 +230,7 @@ class Request(object):
     @staticmethod
     def apply_overrides(request, overrides):
         if overrides:
-            for k, v in overrides.iteritems():
+            for k, v in overrides.items():
                 o = request.getElement('overrides').appendElement()
                 o.setElement('fieldId', k)
                 o.setElement('value', v)
@@ -262,7 +262,7 @@ class HistoricalDataResponse(object):
 
     def as_frame(self):
         """ :return: Multi-Index DataFrame """
-        sids, frames = self.response_map.keys(), self.response_map.values()
+        sids, frames = list(self.response_map.keys()), list(self.response_map.values())
         frame = pd.concat(frames, keys=sids, axis=1)
         return frame
 
@@ -301,8 +301,8 @@ class HistoricalDataRequest(Request):
                          ignore_field_error=ignore_field_error)
         period = period or 'DAILY'
         assert period in ('DAILY', 'WEEKLY', 'MONTHLY', 'QUARTERLY', 'SEMI_ANNUALLY', 'YEARLY')
-        self.is_single_sid = is_single_sid = isinstance(sids, basestring)
-        self.is_single_field = is_single_field = isinstance(fields, basestring)
+        self.is_single_sid = is_single_sid = isinstance(sids, str)
+        self.is_single_field = is_single_field = isinstance(fields, str)
         self.sids = is_single_sid and [sids] or list(sids)
         self.fields = is_single_field and [fields] or list(fields)
         self.end = end = pd.to_datetime(end) if end else pd.Timestamp.now()
@@ -403,7 +403,7 @@ class ReferenceDataResponse(object):
 
     def as_frame(self):
         """ :return: Multi-Index DataFrame """
-        data = {sid: pd.Series(data) for sid, data in self.response_map.iteritems()}
+        data = {sid: pd.Series(data) for sid, data in self.response_map.items()}
         frame = pd.DataFrame.from_dict(data, orient='index')
         # layer in any missing fields just in case
         frame = frame.reindex_axis(self.request.fields, axis=1)
@@ -418,10 +418,10 @@ class ReferenceDataRequest(Request):
         """
         Request.__init__(self, '//blp/refdata', ignore_security_error=ignore_security_error,
                          ignore_field_error=ignore_field_error)
-        self.is_single_sid = is_single_sid = isinstance(sids, basestring)
-        self.is_single_field = is_single_field = isinstance(fields, basestring)
-        self.sids = isinstance(sids, basestring) and [sids] or sids
-        self.fields = isinstance(fields, basestring) and [fields] or fields
+        self.is_single_sid = is_single_sid = isinstance(sids, str)
+        self.is_single_field = is_single_field = isinstance(fields, str)
+        self.sids = isinstance(sids, str) and [sids] or sids
+        self.fields = isinstance(fields, str) and [fields] or fields
         self.return_formatted_value = return_formatted_value
         self.use_utc_time = use_utc_time
         self.overrides = overrides
@@ -430,7 +430,7 @@ class ReferenceDataRequest(Request):
         fmtargs = dict(clz=self.__class__.__name__,
                        sids=','.join(self.sids),
                        fields=','.join(self.fields),
-                       overrides=','.join(['%s=%s' % (k, v) for k, v in self.overrides.iteritems()]))
+                       overrides=','.join(['%s=%s' % (k, v) for k, v in self.overrides.items()]))
         return '<{clz}([{sids}], [{fields}], overrides={overrides})'.format(**fmtargs)
 
     def new_response(self):
@@ -451,7 +451,7 @@ class ReferenceDataRequest(Request):
         farr = node.getElement('fieldData')
         fdata = XmlHelper.get_child_values(farr, self.fields)
         assert len(fdata) == len(self.fields), 'field length must match data length'
-        self.response.on_security_data(sid, dict(zip(self.fields, fdata)))
+        self.response.on_security_data(sid, dict(list(zip(self.fields, fdata))))
         ferrors = XmlHelper.get_field_errors(node)
         ferrors and self.field_errors.extend(ferrors)
 
@@ -485,7 +485,7 @@ class IntradayTickRequest(Request):
         """
         Request.__init__(self, '//blp/refdata')
         self.sid = sid
-        self.events = isinstance(events, basestring) and [events] or events
+        self.events = isinstance(events, str) and [events] or events
         self.include_condition_codes = include_condition_codes
         self.include_nonplottable_events = include_nonplottable_events
         self.include_exchange_codes = include_exchange_codes
@@ -625,7 +625,7 @@ class EQSResponse(object):
 
     def as_frame(self):
         """ :return: Multi-Index DataFrame """
-        data = {sid: pd.Series(data) for sid, data in self.response_map.iteritems()}
+        data = {sid: pd.Series(data) for sid, data in self.response_map.items()}
         return pd.DataFrame.from_dict(data, orient='index')
 
 
@@ -668,7 +668,7 @@ class EQSRequest(Request):
         farr = node.getElement('fieldData')
         fldnames = [str(farr.getElement(_).name()) for _ in range(farr.numElements())]
         fdata = XmlHelper.get_child_values(farr, fldnames)
-        self.response.on_security_data(sid, dict(zip(fldnames, fdata)))
+        self.response.on_security_data(sid, dict(list(zip(fldnames, fdata))))
         ferrors = XmlHelper.get_field_errors(node)
         ferrors and self.field_errors.extend(ferrors)
 
@@ -774,8 +774,8 @@ class Terminal(object):
 
 class SyncSubscription(object):
     def __init__(self, tickers, fields, interval=None, host='localhost', port=8194):
-        self.fields = isinstance(fields, basestring) and [fields] or fields
-        self.tickers = isinstance(tickers, basestring) and [tickers] or tickers
+        self.fields = isinstance(fields, str) and [fields] or fields
+        self.tickers = isinstance(tickers, str) and [tickers] or tickers
         self.interval = interval
         self.host = host
         self.port = port

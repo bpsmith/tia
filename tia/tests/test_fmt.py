@@ -12,7 +12,7 @@ class TestFormat(unittest.TestCase):
     def ae(self, expected, fct, value, **kwargs):
         cb = fct(**kwargs)
         actual = cb(value)
-        self.assertEquals(expected, actual)
+        self.assertEqual(expected, actual)
 
     def test_default_formats(self):
         B = float('-1,250,500,880.76'.replace(',', ''))
@@ -48,10 +48,10 @@ class TestFormat(unittest.TestCase):
 
         for val, expected, fct in tests:
             actual = fct(val)
-            self.assertEquals(expected, actual)
+            self.assertEqual(expected, actual)
             # Test if it were a list
             actual = fct([val]*5)
-            self.assertEquals([expected]*5, actual)
+            self.assertEqual([expected]*5, actual)
             # Test if it were a series
             actual = fct(pd.Series([val]*5))
             pt.assert_series_equal(pd.Series([expected]*5), actual)
@@ -60,7 +60,7 @@ class TestFormat(unittest.TestCase):
             pt.assert_frame_equal(pd.DataFrame({'a': [expected]*5, 'b': [expected]*5}), actual)
 
     def test_fmt_datetime(self):
-        self.assertEquals(fmt.new_datetime_formatter('%Y-%m')(pd.to_datetime('1/1/2013')), '2013-01')
+        self.assertEqual(fmt.new_datetime_formatter('%Y-%m')(pd.to_datetime('1/1/2013')), '2013-01')
 
     def test_guess_formatter(self):
         for n, t in (3, 'k'), (6, 'M'), (9, 'B'):

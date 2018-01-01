@@ -84,7 +84,7 @@ class NumberFormat(object):
 
     def __call__(self, value, **kwargs):
         # apply any overrides
-        for k, v in kwargs.iteritems():
+        for k, v in kwargs.items():
             if hasattr(self, k):
                 setattr(self, k, v)
 
@@ -95,7 +95,7 @@ class NumberFormat(object):
         elif isinstance(value, pd.DataFrame):
             return value.applymap(self_with_args)
         elif isinstance(value, (list, tuple)):
-            return map(self_with_args, value)
+            return list(map(self_with_args, value))
         elif isinstance(value, np.ndarray):
             if value.ndim == 2:
                 return self_with_args(pd.DataFrame(value)).values

@@ -63,7 +63,7 @@ def _ensure_sorf(arg):
 
 
 def _ensure_col(arg, **kwds):
-    for k, v in kwds.iteritems():
+    for k, v in kwds.items():
         if v not in arg:
             raise Exception('failed to find column for argument %s=%s' % (k, v))
 
@@ -310,7 +310,7 @@ class Signal(object):
         changes = signal[diff != 0]
         lsig = 0
         qtyfct = self._qty_fct(pxs.index)
-        for ts, sig in changes.iteritems():
+        for ts, sig in changes.items():
             blotter.ts = ts
             if sig != lsig:
                 px = pxs.get(ts, None)
@@ -335,7 +335,7 @@ class Signal(object):
         lsig = 0
         nopen = len(open_pxs)
         qtyfct = self._qty_fct(open_pxs.index)
-        for ts, sig in changes.iteritems():
+        for ts, sig in changes.items():
             blotter.ts = ts
             if sig != lsig:
                 if lsig != 0:

@@ -236,7 +236,7 @@ class PortfolioSummary(object):
                         res.index = idx
                         results.append(res)
                     else:
-                        for k, v in res.iteritems():
+                        for k, v in res.items():
                             # prepend current levels to key name
                             v = v.to_frame().T
                             idx = pd.MultiIndex.from_arrays(idx_vals + [k], names=idx_names + ['lvl%s' % lvls])
@@ -250,7 +250,7 @@ class PortfolioSummary(object):
 
             if hasattr(port, 'iteritems'):
                 pieces = []
-                for k, p in port.iteritems():
+                for k, p in port.items():
                     res = _get_res(p)
                     defidx = res.index.nlevels == 1 and (res.index == 0).all()
                     res = insert_level(res, k, axis=1, level_name='lvl1')
@@ -263,7 +263,7 @@ class PortfolioSummary(object):
         else:
             if hasattr(port, 'iteritems'):
                 pieces = []
-                for k, p in port.iteritems():
+                for k, p in port.items():
                     results = []
                     _iter_all_lvls(0, [], p, results)
                     tmp = pd.concat(results)
@@ -327,7 +327,7 @@ class PortfolioSummary(object):
         data[('pos', 'ret max')] = stats.ret_max
         data[('pos', 'dur avg')] = stats.duration_avg
         data[('pos', 'dur max')] = stats.duration_max
-        return pd.Series(data, index=pd.MultiIndex.from_tuples(data.keys()))
+        return pd.Series(data, index=pd.MultiIndex.from_tuples(list(data.keys())))
 
     @staticmethod
     def analyze_pl(port):
@@ -354,4 +354,4 @@ class PortfolioSummary(object):
         data[('pos', 'pl std')] = stats.pl_std
         data[('pos', 'pl min')] = stats.pl_min
         data[('pos', 'pl max')] = stats.pl_max
-        return pd.Series(data, index=pd.MultiIndex.from_tuples(data.keys()))
+        return pd.Series(data, index=pd.MultiIndex.from_tuples(list(data.keys())))
