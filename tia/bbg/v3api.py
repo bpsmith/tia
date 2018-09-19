@@ -406,7 +406,7 @@ class ReferenceDataResponse(object):
         data = {sid: pd.Series(data) for sid, data in self.response_map.items()}
         frame = pd.DataFrame.from_dict(data, orient='index')
         # layer in any missing fields just in case
-        frame = frame.reindex_axis(self.request.fields, axis=1)
+        frame = frame.reindex(self.request.fields, axis=1)
         return frame
 
 
