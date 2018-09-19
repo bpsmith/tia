@@ -1,3 +1,43 @@
+# This is a Fork!
+I've updated the whole tia project with 2to3 to be Python 3 compliant. It is NOT Python 2 compliant, however.
+
+There are now community contributions to address deprecation warnings in Pandas. I'm open to accepting additional community contributions. Just submit a pull request.
+
+### Install tia with Python 3 changes + latest community contributions
+```
+$ pip install git+git://github.com/PaulMest/tia.git#egg=tia
+```
+or
+```
+$ pip install git+https://github.com/PaulMest/tia.git#egg=tia
+```
+or put one of these into your `requirements.txt` file
+```
+# Using git/SSH
+git+git://github.com/PaulMest/tia.git#egg=tia
+
+# Using https
+git+https://github.com/PaulMest/tia.git#egg=tia
+```
+
+### Install original tia with only changes related to Python 3
+```
+$ pip install git+git://github.com/PaulMest/tia.git@066549f834791b024c1d8eb595e0d18fa1e3c1c5#egg=tia
+```
+or
+```
+$ pip install git+https://github.com/PaulMest/tia.git@066549f834791b024c1d8eb595e0d18fa1e3c1c5#egg=tia
+```
+or put one of these into your `requirements.txt` file
+```
+# Using git/SSH
+git+git://github.com/PaulMest/tia.git@066549f834791b024c1d8eb595e0d18fa1e3c1c5#egg=tia
+
+# Using https
+git+https://github.com/PaulMest/tia.git@066549f834791b024c1d8eb595e0d18fa1e3c1c5#egg=tia
+```
+
+
 # tia: Toolkit for integration and analysis
 
 ## Overview
@@ -30,7 +70,7 @@ Utils
 
 
 ## Dependencies
-- Python 2.7
+- Python 3
 
 ### Mandatory
 - [numpy](http://www.numpy.org/)
@@ -43,11 +83,3 @@ Utils
 - [reportlab](http://www.reportlab.com/)
 - [ta-lib](http://mrjbq7.github.io/ta-lib/)
 - [bloomberg](http://www.bloomberglabs.com/api/libraries/)
-
-
-##Installation
-
-To install tia, simply:
-
-    $ pip install tia
-
