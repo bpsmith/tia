@@ -20,7 +20,7 @@ git+git://github.com/PaulMest/tia.git#egg=tia
 git+https://github.com/PaulMest/tia.git#egg=tia
 ```
 
-### Install original tia with only changes related to Python 3
+### Install original tia with only changes related to Python 3 (and no additional community contributions)
 ```
 $ pip install git+git://github.com/PaulMest/tia.git@066549f834791b024c1d8eb595e0d18fa1e3c1c5#egg=tia
 ```
