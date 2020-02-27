@@ -183,11 +183,11 @@ class XmlHelper(object):
 
 
 def debug_event(evt):
-    print 'unhandled event: %s' % evt.EventType
+    print('unhandled event: %s' % evt.EventType)
     if evt.EventType in [blpapi.Event.RESPONSE, blpapi.Event.PARTIAL_RESPONSE]:
-        print 'messages:'
+        print('messages:')
         for msg in XmlHelper.message_iter(evt):
-            print msg.Print
+            print(msg.Print)
 
 
 class Request(object):
