@@ -86,7 +86,7 @@ class DynamicTable(Table):
 def is_contiguous(idx):
     if len(idx) > 0:
         s0, s1 = idx.min(), idx.max()
-        expected = pd.Int64Index(np.array(list(range(s0, s1 + 1))))
+        expected = pd.Index(np.array(list(range(s0, s1 + 1))), dtype='int64')
         # return idx.isin(expected).all()
         return expected.isin(idx).all()
 
