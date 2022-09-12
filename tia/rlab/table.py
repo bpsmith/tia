@@ -134,7 +134,7 @@ def span_iter(series):
                 yield sorted.index[li], sorted.index[i + 1]
         else:
             li = i + 1
-    raise StopIteration
+    #raise StopIteration
 
 
 class BorderType(object):
@@ -755,7 +755,7 @@ class TableFormatter(object):
             values.iloc[:nhdrs - 1, :nidxs] = ''
 
         formatted_values = pd.DataFrame(np.empty((nhdrs + nrows, nidxs + ncols), dtype=object))
-        formatted_values.ix[:, :] = values.copy().values
+        formatted_values.iloc[:, :] = values.copy().values
         self.actual_values = values
         self.formatted_values = formatted_values
         self.named_regions = {
