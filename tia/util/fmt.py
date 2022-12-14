@@ -2,7 +2,7 @@
 import math
 
 import pandas as pd
-import pandas.lib as lib
+import pandas._libs.lib as lib
 import numpy as np
 
 pd_is_datetime_arraylike = None
