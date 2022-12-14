@@ -5,19 +5,23 @@ There are now community contributions to address deprecation warnings in Pandas.
 
 ### Install tia with Python 3 changes + latest community contributions
 ```
-$ pip install git+git://github.com/PaulMest/tia.git#egg=tia
+pip install https://github.com/cjames9/tia/archive/master.zip
 ```
 or
 ```
-$ pip install git+https://github.com/PaulMest/tia.git#egg=tia
+$ pip install git+git://github.com/cjames9/tia.git#egg=tia
+```
+or
+```
+$ pip install git+https://github.com/cjames9/tia.git#egg=tia
 ```
 or put one of these into your `requirements.txt` file
 ```
 # Using git/SSH
-git+git://github.com/PaulMest/tia.git#egg=tia
+git+git://github.com/cjames9/tia.git#egg=tia
 
 # Using https
-git+https://github.com/PaulMest/tia.git#egg=tia
+git+https://github.com/cjames9/tia.git#egg=tia
 ```
 
 ### Install original tia with only changes related to Python 3 (and no additional community contributions)
