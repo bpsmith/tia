@@ -299,7 +299,7 @@ def drawdown_info(returns, geometric=True):
     rows = []
     if 1 in ixs:
         for ix in ixs[1]:
-            sub = dd.ix[ix]
+            sub = dd.loc[ix]
             # need to get t+1 since actually draw down ends on the 0 value
             end = dd.index[dd.index.get_loc(sub.index[-1]) + (last != sub.index[-1] and 1 or 0)]
             rows.append([sub.index[0], end, sub.vals.min(), sub.vals.idxmin()])

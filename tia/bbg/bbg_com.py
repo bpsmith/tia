@@ -337,7 +337,7 @@ class ReferenceDataRequest(Request):
         """ Return the response as a single series """
         assert len(self.symbols) == 1, 'expected single request'
         if self.response_type == 'frame':
-            return self.response.ix[self.symbols[0]]
+            return self.response.loc[self.symbols[0]]
         else:
             return pandas.Series(self.response[self.symbols])
 

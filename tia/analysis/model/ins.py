@@ -1,6 +1,8 @@
 import pandas as pd
 import numpy as np
-from pandas.io.data import get_data_yahoo
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
+from pandas_datareader.data import get_data_yahoo
 
 from tia.analysis.perf import periods_in_year
 from tia.analysis.model.interface import CostCalculator, EodMarketData
@@ -216,8 +218,8 @@ def load_yahoo_stock(sids, start=None, end=None, dvds=True):
         return Instruments([load_yahoo_stock(sid, start=start, end=end, dvds=dvds) for sid in sids])
     else:
         sid = sids
-        end = end and pd.to_datetime(end) or pd.datetime.now()
-        start = start and pd.to_datetime(start) or end + pd.datetools.relativedelta(years=-1)
+        end = end and pd.to_datetime(end) or datetime.now()
+        start = start and pd.to_datetime(start) or end + relativedelta(years=-1)
         data = get_data_yahoo(sid, start=start, end=end)
         data = data.rename(columns=lambda c: c.lower())
         if dvds:
@@ -262,8 +264,8 @@ def load_bbg_stock(sid_or_accessor, start=None, end=None, dvds=True):
     :param dvds:
     :return:
     """
-    end = end and pd.to_datetime(end) or pd.datetime.now()
-    start = start and pd.to_datetime(start) or end + pd.datetools.relativedelta(years=-1)
+    end = end and pd.to_datetime(end) or datetime.now()
+    start = start and pd.to_datetime(start) or end + relativedelta(years=-1)
 
     FLDS = ['PX_OPEN', 'PX_HIGH', 'PX_LOW', 'PX_LAST']
     DVD_FLD = 'DVD_HIST_ALL'
@@ -301,8 +303,8 @@ def load_bbg_generic(sid_or_accessor, start=None, end=None):
     :param end:
     :return:
     """
-    end = end and pd.to_datetime(end) or pd.datetime.now()
-    start = start and pd.to_datetime(start) or end + pd.datetools.relativedelta(years=-1)
+    end = end and pd.to_datetime(end) or datetime.now()
+    start = start and pd.to_datetime(start) or end + relativedelta(years=-1)
 
     FLDS = ['PX_OPEN', 'PX_HIGH', 'PX_LOW', 'PX_LAST']
     RENAME = {'PX_OPEN': 'open', 'PX_HIGH': 'high', 'PX_LOW': 'low', 'PX_LAST': 'close'}
@@ -321,8 +323,8 @@ def load_bbg_future(sid_or_accessor, start=None, end=None):
     :param end:
     :return:
     """
-    end = end and pd.to_datetime(end) or pd.datetime.now()
-    start = start and pd.to_datetime(start) or end + pd.datetools.relativedelta(years=-1)
+    end = end and pd.to_datetime(end) or datetime.now()
+    start = start and pd.to_datetime(start) or end + relativedelta(years=-1)
 
     FLDS = ['PX_OPEN', 'PX_HIGH', 'PX_LOW', 'PX_LAST']
     RENAME = {'PX_OPEN': 'open', 'PX_HIGH': 'high', 'PX_LOW': 'low', 'PX_LAST': 'close'}

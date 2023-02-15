@@ -86,7 +86,7 @@ class DynamicTable(Table):
 def is_contiguous(idx):
     if len(idx) > 0:
         s0, s1 = idx.min(), idx.max()
-        expected = pd.Int64Index(np.array(list(range(s0, s1 + 1))))
+        expected = pd.Index(np.array(list(range(s0, s1 + 1))), dtype='int64')
         # return idx.isin(expected).all()
         return expected.isin(idx).all()
 
@@ -134,7 +134,7 @@ def span_iter(series):
                 yield sorted.index[li], sorted.index[i + 1]
         else:
             li = i + 1
-    raise StopIteration
+    #raise StopIteration
 
 
 class BorderType(object):
@@ -310,8 +310,8 @@ class RegionFormatter(object):
         return self.parent.actual_values.iloc[self.row_ilocs, self.col_ilocs]
 
     def new_instance(self, local_row_idxs, local_col_idxs):
-        rows = pd.Int64Index([self.row_ilocs[r] for r in local_row_idxs])
-        cols = pd.Int64Index([self.col_ilocs[c] for c in local_col_idxs])
+        rows = pd.Index([self.row_ilocs[r] for r in local_row_idxs], dtype='Int64')
+        cols = pd.Index([self.col_ilocs[c] for c in local_col_idxs], dtype='Int64')
         return RegionFormatter(self.parent, rows, cols)
 
     def empty_frame(self):
@@ -331,7 +331,7 @@ class RegionFormatter(object):
             matches = matches[:max_matches]
 
         if matches:
-            return RegionFormatter(self.parent, self.row_ilocs, pd.Int64Index(matches))
+            return RegionFormatter(self.parent, self.row_ilocs, pd.Index(matches, dtype='Int64'))
         elif empty_res:
             return self.empty_frame()
 
@@ -349,7 +349,7 @@ class RegionFormatter(object):
             matches = matches[:max_matches]
 
         if matches:
-            return RegionFormatter(self.parent, pd.Int64Index(matches), self.col_ilocs)
+            return RegionFormatter(self.parent, pd.Index(matches, dtype='Int64'), self.col_ilocs)
         elif empty_res:
             return self.empty_frame()
 
@@ -755,7 +755,7 @@ class TableFormatter(object):
             values.iloc[:nhdrs - 1, :nidxs] = ''
 
         formatted_values = pd.DataFrame(np.empty((nhdrs + nrows, nidxs + ncols), dtype=object))
-        formatted_values.ix[:, :] = values.copy().values
+        formatted_values.iloc[:, :] = values.copy().values
         self.actual_values = values
         self.formatted_values = formatted_values
         self.named_regions = {
@@ -848,7 +848,7 @@ class TableFormatter(object):
                     if len(arr) != len(self.formatted_values.index):
                         raise ValueError(
                             '%s: expected %s rows but got %s' % (attr, len(arr), len(self.formatted_values.index)))
-                self.rowattrs.ix[:, attr] = arr
+                self.rowattrs.loc[:, attr] = arr
         return self
 
     def set_col_widths(self, pcts=None, amts=None, maxs=None, mins=None):
@@ -865,7 +865,7 @@ class TableFormatter(object):
                     if len(arr) != len(self.formatted_values.columns):
                         raise ValueError(
                             '%s: expected %s cols but got %s' % (attr, len(arr), len(self.formatted_values.columns)))
-                self.colattrs.ix[:, attr] = arr
+                self.colattrs.loc[:, attr] = arr
         return self
 
     def _resolve_dims(self, available, attrs):

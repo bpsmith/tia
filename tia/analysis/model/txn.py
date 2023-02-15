@@ -145,7 +145,7 @@ class Txns(object):
             trds = tuple(pd.Series(self.trades)[pmask.values])
             # build the object
             result = Txns(trds, self.pricer, self.ret_calc)
-            result._frame = self.frame.ix[pmask]
+            result._frame = self.frame.loc[pmask]
             if hasattr(self, '_profit_and_loss'):
                 pl = self.profit_and_loss
                 result._profit_and_loss = pl.subset(result)

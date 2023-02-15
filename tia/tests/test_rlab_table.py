@@ -1,8 +1,6 @@
 import unittest
-
 import pandas as pd
-import pandas.util.testing as pdtest
-
+import pandas.testing as pdtest
 import tia.rlab.table as tbl
 
 

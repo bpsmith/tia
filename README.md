@@ -5,6 +5,10 @@ There are now community contributions to address deprecation warnings in Pandas.
 
 ### Install tia with Python 3 changes + latest community contributions
 ```
+pip install https://github.com/PaulMest/tia/archive/master.zip
+```
+or
+```
 $ pip install git+git://github.com/PaulMest/tia.git#egg=tia
 ```
 or

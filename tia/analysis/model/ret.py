@@ -204,7 +204,7 @@ class CumulativeRets(object):
         if ddinfo.empty:
             return None
         else:
-            return self.drawdown_info['maxdd dt'].ix[self.drawdown_info['maxdd'].idxmin()]
+            return self.drawdown_info['maxdd dt'].loc[self.drawdown_info['maxdd'].idxmin()]
 
     # -----------------------------------------------------------
     # Expanding metrics
@@ -351,10 +351,10 @@ class CumulativeRets(object):
     def filter(self, mask, keep_ltd=0):
         if isinstance(mask, pd.Series):
             mask = mask.values
-        rets = self.rets.ix[mask]
+        rets = self.rets.loc[mask]
         ltd = None
         if keep_ltd:
-            ltd = self.ltd_rets.ix[mask]
+            ltd = self.ltd_rets.loc[mask]
         return CumulativeRets(rets=rets, ltd_rets=ltd)
 
 

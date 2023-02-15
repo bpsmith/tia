@@ -18,9 +18,9 @@ def _dly_to_ltd(frame, dly_cols):
     sums = frame[dly_cols].cumsum()
     # BUG when copying a single row, oddly
     if len(frame.index) == 1:
-        frame.iloc[0, ilocs] = sums.iloc[0, list(range(len(dly_cols)))]
+        frame.loc[0, ilocs] = sums.loc[0, list(range(len(dly_cols)))]
     else:
-        frame.iloc[:, ilocs] = sums.iloc[:, list(range(len(dly_cols)))]
+        frame.loc[:, ilocs] = sums.loc[:, list(range(len(dly_cols)))]
     return frame
 
 
@@ -31,7 +31,7 @@ def _ltd_to_dly(frame, ltd_cols):
     # not sure why this is failing
     # pl.iloc[1:, ilocs] = diff.iloc[1:]
     for i, cidx in enumerate(ilocs):
-        pl.iloc[1:, cidx] = diff.iloc[1:, i]
+        pl.loc[1:, cidx] = diff.loc[1:, i]
     return pl
 
 
@@ -207,7 +207,7 @@ class TxnProfitAndLossDetails(object):
         else:
             mask = self.get_pid_mask(pid)
             frame = self.frame
-            sub = frame.ix[mask.values]
+            sub = frame.loc[mask.values]
             return TxnProfitAndLossDetails(frame=sub)
 
     def iter_by_year(self):
@@ -281,7 +281,7 @@ class ProfitAndLossDetails(object):
         rows = []
         if 1 in ixs:
             for ix in ixs[1]:
-                sub = dd.ix[ix]
+                sub = dd.loc[ix]
                 # need to get t+1 since actually draw down ends on the 0 value
                 end = dd.index[dd.index.get_loc(sub.index[-1]) + (last != sub.index[-1] and 1 or 0)]
                 rows.append([sub.index[0], end, sub.vals.min(), sub.vals.idxmin()])
@@ -313,7 +313,7 @@ class ProfitAndLossDetails(object):
         if self.drawdown_info.empty:
             return None
         else:
-            return self.drawdown_info['maxdd dt'].ix[self.drawdown_info['maxdd'].idxmin()]
+            return self.drawdown_info['maxdd dt'].loc[self.drawdown_info['maxdd'].idxmin()]
 
     @lazy_property
     def summary(self):

@@ -1,4 +1,4 @@
-import itertools
+from itertools import count
 
 import pandas as pd
 import numpy as np
@@ -39,7 +39,7 @@ class TradeBlotter(object):
         self._live_qty = 0
         self.trades = []
         if tidgen is None or isinstance(tidgen, int):
-            tidgen = itertools.count(tidgen or 1, 1)
+            tidgen = count(tidgen or 1, 1)
         self.tidgen = tidgen
 
     def is_open(self):
