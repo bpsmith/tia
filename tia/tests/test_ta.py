@@ -1,6 +1,6 @@
 import unittest
 import pandas as pd
-import pandas.util.testing as pdtest
+import pandas.testing as pdtest
 import tia.analysis.ta as ta
 import numpy as np
 
@@ -35,7 +35,3 @@ class TATest(unittest.TestCase):
         self.assertEqual(trds[2].ts, sig.index[3])
         self.assertEqual(trds[3].qty, 1)
         self.assertEqual(trds[3].ts, sig.index[4])
-
-
-
-

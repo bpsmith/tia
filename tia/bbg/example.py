@@ -1,9 +1,11 @@
 import pandas as pd
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
 from tia.bbg import LocalTerminal
 
 if __name__ == '__main__':
-    d = pd.datetools.BDay(-4).apply(pd.datetime.now())
-    m = pd.datetools.BMonthBegin(-2).apply(pd.datetime.now())
+    d = pd.date_range(start=datetime.today()-relativedelta(days=4), end=datetime.today(), freq='B')
+    m = pd.date_range(start=datetime.today()-relativedelta(months=2), end=datetime.today(), freq='BM')
 
     def banner(msg):
         print('*' * 25)
@@ -21,7 +23,7 @@ if __name__ == '__main__':
     rframe = response.as_frame()
     print(rframe.columns)
     # show frame within a frame
-    print(rframe.ix[0, 'fwd_curve'].tail())
+    print(rframe.loc[0, 'fwd_curve'].tail())
 
     banner('ReferenceDataRequest: multi security, multi-field, bad field')
     response = LocalTerminal.get_reference_data(['eurusd curncy', 'msft us equity'], ['px_last', 'fwd_curve'],
@@ -44,4 +46,4 @@ if __name__ == '__main__':
     #
     # - Retrieve an fx vol surface:  BbgReferenceDataRequest('eurusd curncy', 'DFLT_VOL_SURF_MID')
     # - Retrieve a fx forward curve:  BbgReferenceDataRequest('eurusd curncy', 'FWD_CURVE')
-    # - Retrieve dividends:  BbgReferenceDataRequest('csco us equity', 'BDVD_PR_EX_DTS_DVD_AMTS_W_ANN')
+    # - Retrieve dividends:  BbgReferenceDataRequest('csco us equity', 'BDVD_PR_EX_DTS_DVD_AMTS_W_AN'N')

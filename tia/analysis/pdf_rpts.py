@@ -164,7 +164,7 @@ class ShortTermReport(object):
         s = PortfolioSummary()
         s.include_long_short().include_win_loss()
         dframe = s(port, PortfolioSummary.analyze_returns).T
-        tf = pdf.table_formatter(do_rename(insert_level(dframe.ix['port'], 'Portfolio', copy=True)))
+        tf = pdf.table_formatter(do_rename(insert_level(dframe.loc['port'], 'Portfolio', copy=True)))
         dofmt(tf)
         dtable = tf.build()
 
@@ -255,7 +255,7 @@ class ShortTermReport(object):
 
         s = PortfolioSummary()
         s.include_long_short().include_win_loss()
-        dframe = s(port, PortfolioSummary.analyze_returns).T.ix['pos']
+        dframe = s(port, PortfolioSummary.analyze_returns).T.loc['pos']
         tf = pdf.table_formatter(do_rename(insert_level(dframe, 'Position', copy=True)))
         dtable = dofmt(tf).build()
 

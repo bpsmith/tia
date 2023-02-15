@@ -8,7 +8,7 @@ from matplotlib.ticker import FuncFormatter
 from matplotlib.dates import DateFormatter
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas
+import pandas as pd
 
 import tia.util.fmt as fmt
 from tia.util.decorator import DeferredExecutionMixin
@@ -19,7 +19,7 @@ class _CustomDateFormatter(DateFormatter):
 
     def __call__(self, x, pos=0):
         if not hasattr(x, 'strftime'):
-            x = pandas.to_datetime(x)
+            x = pd.to_datetime(x)
         x = x.strftime(self.fmt)
         return x
 

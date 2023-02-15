@@ -4,6 +4,7 @@ from datetime import datetime
 import blpapi
 import pandas as pd
 import numpy as np
+from dateutil.relativedelta import relativedelta
 
 import tia.util.log as log
 
@@ -90,7 +91,7 @@ class XmlHelper(object):
                 return pd.NaT
             else:
                 v = ele.getValue()
-                now = pd.datetime.now()
+                now = datetime.now()
                 return datetime(year=now.year, month=now.month, day=now.day, hour=v.hour, minute=v.minute, second=v.second).time() if v else np.nan
         elif dtype == 13:  # Datetime
             if ele.isNull():
@@ -99,7 +100,6 @@ class XmlHelper(object):
                 v = ele.getValue()
                 return v
         elif dtype == 14:  # Enumeration
-            # raise NotImplementedError('ENUMERATION data type needs implemented')
             return str(ele.getValue())
         elif dtype == 16:  # Choice
             raise NotImplementedError('CHOICE data type needs implemented')
@@ -254,9 +254,6 @@ class HistoricalDataResponse(object):
     def on_security_complete(self, sid, frame):
         self.response_map[sid] = frame
 
-    def as_panel(self):
-        return pd.Panel(self.response_map)
-
     def as_map(self):
         return self.response_map
 
@@ -306,7 +303,7 @@ class HistoricalDataRequest(Request):
         self.sids = is_single_sid and [sids] or list(sids)
         self.fields = is_single_field and [fields] or list(fields)
         self.end = end = pd.to_datetime(end) if end else pd.Timestamp.now()
-        self.start = pd.to_datetime(start) if start else end + pd.datetools.relativedelta(years=-1)
+        self.start = pd.to_datetime(start) if start else end + relativedelta(years=-1)
         self.period = period
         self.period_adjustment = period_adjustment
         self.currency = currency
@@ -494,7 +491,7 @@ class IntradayTickRequest(Request):
         self.include_rsp_codes = include_rsp_codes
         self.include_bic_mic_codes = include_bic_mic_codes
         self.end = end = pd.to_datetime(end) if end else pd.Timestamp.now()
-        self.start = pd.to_datetime(start) if start else end + pd.datetools.relativedelta(days=-1)
+        self.start = pd.to_datetime(start) if start else end + relativedelta(days=-1)
 
     def __repr__(self):
         fmtargs = dict(clz=self.__class__.__name__,
@@ -568,7 +565,7 @@ class IntradayBarRequest(Request):
         self.adjustment_split = adjustment_split
         self.adjustment_follow_DPDF = adjustment_follow_DPDF
         self.end = end = pd.to_datetime(end) if end else pd.Timestamp.now()
-        self.start = pd.to_datetime(start) if start else end + pd.datetools.relativedelta(hours=-1)
+        self.start = pd.to_datetime(start) if start else end + relativedelta(hours=-1)
 
     def __repr__(self):
         fmtargs = dict(clz=self.__class__.__name__,
@@ -819,7 +816,7 @@ class SyncSubscription(object):
             for cidx, fld in enumerate(self.fields):
                 if msg.hasElement(fld.upper()):
                     val = XmlHelper.get_child_value(msg, fld.upper())
-                    self.frame.iloc[ridx, cidx] = val
+                    self.frame.loc[ridx, cidx] = val
 
     def check_for_updates(self, timeout=500):
         if self.session is None:

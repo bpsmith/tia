@@ -310,8 +310,8 @@ class RegionFormatter(object):
         return self.parent.actual_values.iloc[self.row_ilocs, self.col_ilocs]
 
     def new_instance(self, local_row_idxs, local_col_idxs):
-        rows = pd.Int64Index([self.row_ilocs[r] for r in local_row_idxs])
-        cols = pd.Int64Index([self.col_ilocs[c] for c in local_col_idxs])
+        rows = pd.Index([self.row_ilocs[r] for r in local_row_idxs], dtype='Int64')
+        cols = pd.Index([self.col_ilocs[c] for c in local_col_idxs], dtype='Int64')
         return RegionFormatter(self.parent, rows, cols)
 
     def empty_frame(self):
@@ -331,7 +331,7 @@ class RegionFormatter(object):
             matches = matches[:max_matches]
 
         if matches:
-            return RegionFormatter(self.parent, self.row_ilocs, pd.Int64Index(matches))
+            return RegionFormatter(self.parent, self.row_ilocs, pd.Index(matches, dtype='Int64'))
         elif empty_res:
             return self.empty_frame()
 
@@ -349,7 +349,7 @@ class RegionFormatter(object):
             matches = matches[:max_matches]
 
         if matches:
-            return RegionFormatter(self.parent, pd.Int64Index(matches), self.col_ilocs)
+            return RegionFormatter(self.parent, pd.Index(matches, dtype='Int64'), self.col_ilocs)
         elif empty_res:
             return self.empty_frame()
 
@@ -848,7 +848,7 @@ class TableFormatter(object):
                     if len(arr) != len(self.formatted_values.index):
                         raise ValueError(
                             '%s: expected %s rows but got %s' % (attr, len(arr), len(self.formatted_values.index)))
-                self.rowattrs.ix[:, attr] = arr
+                self.rowattrs.loc[:, attr] = arr
         return self
 
     def set_col_widths(self, pcts=None, amts=None, maxs=None, mins=None):
@@ -865,7 +865,7 @@ class TableFormatter(object):
                     if len(arr) != len(self.formatted_values.columns):
                         raise ValueError(
                             '%s: expected %s cols but got %s' % (attr, len(arr), len(self.formatted_values.columns)))
-                self.colattrs.ix[:, attr] = arr
+                self.colattrs.loc[:, attr] = arr
         return self
 
     def _resolve_dims(self, available, attrs):

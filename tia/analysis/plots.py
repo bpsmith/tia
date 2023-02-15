@@ -16,7 +16,7 @@ def plot_return_on_dollar(rets, title='Return on $1', show_maxdd=0, figsize=None
             fv = s.first_valid_index()
             fi = s.index.get_loc(fv)
             if fi != 0:
-                tmp.ix[fi - 1, c] = 1.
+                tmp.loc[fi - 1, c] = 1.
             else:
                 if not s.index.freq:
                     # no frequency set
@@ -62,7 +62,7 @@ def plot_return_on_dollar(rets, title='Return on $1', show_maxdd=0, figsize=None
             lbl = c and c + ' maxdd' or 'maxdd'
             # get cret to place annotation correctly
             if isinstance(crets, pd.DataFrame):
-                amt = crets.ix[dt, c]
+                amt = crets.loc[dt, c]
             else:
                 amt = crets[dt]
 

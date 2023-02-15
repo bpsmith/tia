@@ -97,7 +97,7 @@ class Positions(object):
         of current Txns object"""
         result = Positions(subtxns)
         if hasattr(self, '_frame'):
-            result._frame = self._frame.ix[subtxns.pids]
+            result._frame = self._frame.loc[subtxns.pids]
             # passing in array results in index name being removed for some reason???
             if result._frame.index.name != self._frame.index.name:
                 result._frame.index.name = self._frame.index.name
@@ -154,10 +154,10 @@ class Positions(object):
             ax.scatter(frame.index, frame.ret, c='k', marker='o', label='All')
         else:
             if len(self.long_pids) > 0:
-                lframe = frame.ix[frame.index.isin(self.long_pids)]
+                lframe = frame.loc[frame.index.isin(self.long_pids)]
                 ax.scatter(lframe.index, lframe.ret, c='k', marker='o', label='Long')
             if len(self.short_pids) > 0:
-                sframe = frame.ix[frame.index.isin(self.short_pids)]
+                sframe = frame.loc[frame.index.isin(self.short_pids)]
                 ax.scatter(sframe.index, sframe.ret, c='r', marker='o', label='Short')
 
         # set some boundaries
@@ -191,12 +191,12 @@ class Positions(object):
             ax.vlines(pids, min_rets, max_rets)
         else:
             if len(self.long_pids) > 0:
-                lframe = frame.ix[frame.index.isin(self.long_pids)]
+                lframe = frame.loc[frame.index.isin(self.long_pids)]
                 s = lframe.duration + 20 if dur else 20
                 ax.scatter(lframe.index, lframe.ret, s=s, c='k', marker='o', label='Long')
                 ax.vlines(lframe.index, min_rets[lframe.index], max_rets[frame.index])
             if len(self.short_pids) > 0:
-                sframe = frame.ix[frame.index.isin(self.short_pids)]
+                sframe = frame.loc[frame.index.isin(self.short_pids)]
                 s = sframe.duration + 20 if dur else 20
                 ax.scatter(sframe.index, sframe.ret, s=s, c='r', marker='o', label='Short')
                 ax.vlines(sframe.index, min_rets[sframe.index], max_rets[sframe.index])
@@ -215,8 +215,8 @@ class PositionsStats(object):
         self.positions = positions
 
     _frame = property(lambda self: self.positions.frame)
-    _loser_frame = property(lambda self: self._frame.ix[self._frame[PC.RET] < 0])
-    _winner_frame = property(lambda self: self._frame.ix[self._frame[PC.RET] >= 0])
+    _loser_frame = property(lambda self: self._frame.loc[self._frame[PC.RET] < 0])
+    _winner_frame = property(lambda self: self._frame.loc[self._frame[PC.RET] >= 0])
 
     win_cnt = property(lambda self: len(self._winner_frame.index))
     lose_cnt = property(lambda self: len(self._loser_frame.index))
@@ -276,12 +276,12 @@ class PositionsStats(object):
     @property
     def consecutive_win_frame(self):
         cf = self.consecutive_frame
-        return cf.ix[cf.is_win]
+        return cf.loc[cf.is_win]
 
     @property
     def consecutive_loss_frame(self):
         cf = self.consecutive_frame
-        return cf.ix[~cf.is_win]
+        return cf.loc[~cf.is_win]
 
     consecutive_wins_max = property(lambda self: self.consecutive_win_frame.cnt.max())
     consecutive_wins_avg = property(lambda self: self.consecutive_win_frame.cnt.mean())

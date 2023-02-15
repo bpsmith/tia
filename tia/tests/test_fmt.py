@@ -1,6 +1,6 @@
 import unittest
 import pandas as pd
-import pandas.util.testing as pt
+import pandas.testing as pt
 import tia.util.fmt as fmt
 
 

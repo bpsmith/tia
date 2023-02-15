@@ -35,7 +35,7 @@ class PortfolioPricer(CostCalculator, EodMarketData):
         if start or end:
             start = start or pxs.index[0]
             end = end or pxs.index[-1]
-            pxs = pxs.ix[start:end]
+            pxs = pxs.loc[start:end]
         return pxs
 
     def get_mkt_val(self, pxs=None):

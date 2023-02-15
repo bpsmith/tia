@@ -17,3 +17,8 @@
 ==================
 
 * Addressed deprecation warnings from Pandas 0.20.x
+
+1.2.0 (2023-02-15)
+==================
+
+* Addressed deprecation warnings from Pandas 1.4.0
