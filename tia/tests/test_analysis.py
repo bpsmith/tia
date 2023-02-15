@@ -1,7 +1,8 @@
 import unittest
 import pandas as pd
-import pandas.util.testing as pdtest
+import pandas.testing as pdtest
 import numpy as np
+from datetime import datetime
 from tia.analysis.model import *
 
 
@@ -32,7 +33,7 @@ class TestAnalysis(unittest.TestCase):
         # Test txn frame
         port = SingleAssetPortfolio(sec, [t1, t2, t3, t4, t5, t6])
         txns = port.txns.frame
-        index = range(len(port.trades))
+        index = list(range(len(port.trades)))
         pdtest.assert_series_equal(txns.txn_qty, pd.Series([5., 2., -3., -4., -4, 4], index=index))
         pdtest.assert_series_equal(txns.open_val, pd.Series([-100., -160., -160. * 4./7., 0, 80, 0], index=index))
         pdtest.assert_series_equal(txns.txn_fees, pd.Series([-1., -1., -1., -1., 0, 0], index=index))
@@ -80,7 +81,7 @@ class TestAnalysis(unittest.TestCase):
 
     def test_blotter(self):
         blotter = TradeBlotter()
-        blotter.ts = pd.datetime.now()  # all trades have same timestamp for testing
+        blotter.ts = datetime.now()  # all trades have same timestamp for testing
         blotter.open(qty=2, px=10)
         self.assertEqual(2., blotter._live_qty)
         blotter.close(px=10)
@@ -98,7 +99,7 @@ class TestAnalysis(unittest.TestCase):
 
     def test_blotter_exceptions(self):
         blotter = TradeBlotter()
-        blotter.ts = pd.datetime.now()  # all trades have same timestamp for testing
+        blotter.ts = datetime.now()  # all trades have same timestamp for testing
         self.assertRaises(Exception, lambda: blotter.close(2, 10))
         blotter.open(2, 10.)
         self.assertRaises(Exception, lambda: blotter.open(2, 10))
@@ -114,8 +115,8 @@ class TestAnalysis(unittest.TestCase):
         pp = PortfolioPricer(1., closing_pxs=pd.Series(10., index=[t1.ts]).asfreq('B', normalize=1))
         port = SingleAssetPortfolio(pp, [t1, t2, t3, t4])
         # make sure long/short is correct
-        pdtest.assert_frame_equal(port.positions.frame.ix[1:1], port.long.positions.frame)
-        pdtest.assert_frame_equal(port.positions.frame.ix[2:2], port.short.positions.frame)
+        pdtest.assert_frame_equal(port.positions.frame.loc[1:1], port.long.positions.frame)
+        pdtest.assert_frame_equal(port.positions.frame.loc[2:2], port.short.positions.frame)
         # some sanity checks
         pdtest.assert_series_equal(port.pl.dly, port.long.pl.dly + port.short.pl.dly)
         pdtest.assert_series_equal(port.pl.ltd_dly, port.long.pl.ltd_dly + port.short.pl.ltd_dly)

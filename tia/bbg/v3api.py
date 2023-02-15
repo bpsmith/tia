@@ -4,6 +4,7 @@ from datetime import datetime
 import blpapi
 import pandas as pd
 import numpy as np
+from dateutil.relativedelta import relativedelta
 
 import tia.util.log as log
 
@@ -90,7 +91,7 @@ class XmlHelper(object):
                 return pd.NaT
             else:
                 v = ele.getValue()
-                now = pd.datetime.now()
+                now = datetime.now()
                 return datetime(year=now.year, month=now.month, day=now.day, hour=v.hour, minute=v.minute, second=v.second).time() if v else np.nan
         elif dtype == 13:  # Datetime
             if ele.isNull():
@@ -99,7 +100,6 @@ class XmlHelper(object):
                 v = ele.getValue()
                 return v
         elif dtype == 14:  # Enumeration
-            # raise NotImplementedError('ENUMERATION data type needs implemented')
             return str(ele.getValue())
         elif dtype == 16:  # Choice
             raise NotImplementedError('CHOICE data type needs implemented')
@@ -183,11 +183,11 @@ class XmlHelper(object):
 
 
 def debug_event(evt):
-    print 'unhandled event: %s' % evt.EventType
+    print('unhandled event: %s' % evt.EventType)
     if evt.EventType in [blpapi.Event.RESPONSE, blpapi.Event.PARTIAL_RESPONSE]:
-        print 'messages:'
+        print('messages:')
         for msg in XmlHelper.message_iter(evt):
-            print msg.Print
+            print(msg.Print)
 
 
 class Request(object):
@@ -230,7 +230,7 @@ class Request(object):
     @staticmethod
     def apply_overrides(request, overrides):
         if overrides:
-            for k, v in overrides.iteritems():
+            for k, v in overrides.items():
                 o = request.getElement('overrides').appendElement()
                 o.setElement('fieldId', k)
                 o.setElement('value', v)
@@ -253,16 +253,16 @@ class HistoricalDataResponse(object):
 
     def on_security_complete(self, sid, frame):
         self.response_map[sid] = frame
-
+    
     def as_panel(self):
-        return pd.Panel(self.response_map)
+        raise NotImplementedError('Pandas.Panel was removed from the library: https://pandas.pydata.org/pandas-docs/version/0.23/generated/pandas.Panel.html.')
 
     def as_map(self):
         return self.response_map
 
     def as_frame(self):
         """ :return: Multi-Index DataFrame """
-        sids, frames = self.response_map.keys(), self.response_map.values()
+        sids, frames = list(self.response_map.keys()), list(self.response_map.values())
         frame = pd.concat(frames, keys=sids, axis=1)
         return frame
 
@@ -301,12 +301,12 @@ class HistoricalDataRequest(Request):
                          ignore_field_error=ignore_field_error)
         period = period or 'DAILY'
         assert period in ('DAILY', 'WEEKLY', 'MONTHLY', 'QUARTERLY', 'SEMI_ANNUALLY', 'YEARLY')
-        self.is_single_sid = is_single_sid = isinstance(sids, basestring)
-        self.is_single_field = is_single_field = isinstance(fields, basestring)
+        self.is_single_sid = is_single_sid = isinstance(sids, str)
+        self.is_single_field = is_single_field = isinstance(fields, str)
         self.sids = is_single_sid and [sids] or list(sids)
         self.fields = is_single_field and [fields] or list(fields)
         self.end = end = pd.to_datetime(end) if end else pd.Timestamp.now()
-        self.start = pd.to_datetime(start) if start else end + pd.datetools.relativedelta(years=-1)
+        self.start = pd.to_datetime(start) if start else end + relativedelta(years=-1)
         self.period = period
         self.period_adjustment = period_adjustment
         self.currency = currency
@@ -403,10 +403,10 @@ class ReferenceDataResponse(object):
 
     def as_frame(self):
         """ :return: Multi-Index DataFrame """
-        data = {sid: pd.Series(data) for sid, data in self.response_map.iteritems()}
+        data = {sid: pd.Series(data) for sid, data in self.response_map.items()}
         frame = pd.DataFrame.from_dict(data, orient='index')
         # layer in any missing fields just in case
-        frame = frame.reindex_axis(self.request.fields, axis=1)
+        frame = frame.reindex(self.request.fields, axis=1)
         return frame
 
 
@@ -418,10 +418,10 @@ class ReferenceDataRequest(Request):
         """
         Request.__init__(self, '//blp/refdata', ignore_security_error=ignore_security_error,
                          ignore_field_error=ignore_field_error)
-        self.is_single_sid = is_single_sid = isinstance(sids, basestring)
-        self.is_single_field = is_single_field = isinstance(fields, basestring)
-        self.sids = isinstance(sids, basestring) and [sids] or sids
-        self.fields = isinstance(fields, basestring) and [fields] or fields
+        self.is_single_sid = is_single_sid = isinstance(sids, str)
+        self.is_single_field = is_single_field = isinstance(fields, str)
+        self.sids = isinstance(sids, str) and [sids] or sids
+        self.fields = isinstance(fields, str) and [fields] or fields
         self.return_formatted_value = return_formatted_value
         self.use_utc_time = use_utc_time
         self.overrides = overrides
@@ -430,7 +430,7 @@ class ReferenceDataRequest(Request):
         fmtargs = dict(clz=self.__class__.__name__,
                        sids=','.join(self.sids),
                        fields=','.join(self.fields),
-                       overrides=','.join(['%s=%s' % (k, v) for k, v in self.overrides.iteritems()]))
+                       overrides=','.join(['%s=%s' % (k, v) for k, v in self.overrides.items()]))
         return '<{clz}([{sids}], [{fields}], overrides={overrides})'.format(**fmtargs)
 
     def new_response(self):
@@ -451,7 +451,7 @@ class ReferenceDataRequest(Request):
         farr = node.getElement('fieldData')
         fdata = XmlHelper.get_child_values(farr, self.fields)
         assert len(fdata) == len(self.fields), 'field length must match data length'
-        self.response.on_security_data(sid, dict(zip(self.fields, fdata)))
+        self.response.on_security_data(sid, dict(list(zip(self.fields, fdata))))
         ferrors = XmlHelper.get_field_errors(node)
         ferrors and self.field_errors.extend(ferrors)
 
@@ -485,7 +485,7 @@ class IntradayTickRequest(Request):
         """
         Request.__init__(self, '//blp/refdata')
         self.sid = sid
-        self.events = isinstance(events, basestring) and [events] or events
+        self.events = isinstance(events, str) and [events] or events
         self.include_condition_codes = include_condition_codes
         self.include_nonplottable_events = include_nonplottable_events
         self.include_exchange_codes = include_exchange_codes
@@ -494,7 +494,7 @@ class IntradayTickRequest(Request):
         self.include_rsp_codes = include_rsp_codes
         self.include_bic_mic_codes = include_bic_mic_codes
         self.end = end = pd.to_datetime(end) if end else pd.Timestamp.now()
-        self.start = pd.to_datetime(start) if start else end + pd.datetools.relativedelta(days=-1)
+        self.start = pd.to_datetime(start) if start else end + relativedelta(days=-1)
 
     def __repr__(self):
         fmtargs = dict(clz=self.__class__.__name__,
@@ -568,7 +568,7 @@ class IntradayBarRequest(Request):
         self.adjustment_split = adjustment_split
         self.adjustment_follow_DPDF = adjustment_follow_DPDF
         self.end = end = pd.to_datetime(end) if end else pd.Timestamp.now()
-        self.start = pd.to_datetime(start) if start else end + pd.datetools.relativedelta(hours=-1)
+        self.start = pd.to_datetime(start) if start else end + relativedelta(hours=-1)
 
     def __repr__(self):
         fmtargs = dict(clz=self.__class__.__name__,
@@ -625,7 +625,7 @@ class EQSResponse(object):
 
     def as_frame(self):
         """ :return: Multi-Index DataFrame """
-        data = {sid: pd.Series(data) for sid, data in self.response_map.iteritems()}
+        data = {sid: pd.Series(data) for sid, data in self.response_map.items()}
         return pd.DataFrame.from_dict(data, orient='index')
 
 
@@ -668,7 +668,7 @@ class EQSRequest(Request):
         farr = node.getElement('fieldData')
         fldnames = [str(farr.getElement(_).name()) for _ in range(farr.numElements())]
         fdata = XmlHelper.get_child_values(farr, fldnames)
-        self.response.on_security_data(sid, dict(zip(fldnames, fdata)))
+        self.response.on_security_data(sid, dict(list(zip(fldnames, fdata))))
         ferrors = XmlHelper.get_field_errors(node)
         ferrors and self.field_errors.extend(ferrors)
 
@@ -774,8 +774,8 @@ class Terminal(object):
 
 class SyncSubscription(object):
     def __init__(self, tickers, fields, interval=None, host='localhost', port=8194):
-        self.fields = isinstance(fields, basestring) and [fields] or fields
-        self.tickers = isinstance(tickers, basestring) and [tickers] or tickers
+        self.fields = isinstance(fields, str) and [fields] or fields
+        self.tickers = isinstance(tickers, str) and [tickers] or tickers
         self.interval = interval
         self.host = host
         self.port = port
@@ -819,7 +819,7 @@ class SyncSubscription(object):
             for cidx, fld in enumerate(self.fields):
                 if msg.hasElement(fld.upper()):
                     val = XmlHelper.get_child_value(msg, fld.upper())
-                    self.frame.iloc[ridx, cidx] = val
+                    self.frame.loc[ridx, cidx] = val
 
     def check_for_updates(self, timeout=500):
         if self.session is None:

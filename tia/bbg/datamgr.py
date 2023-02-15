@@ -5,6 +5,7 @@ import os
 from collections import OrderedDict
 
 import pandas as pd
+from datetime import datetime
 
 from tia.bbg import LocalTerminal
 import tia.util.log as log
@@ -13,7 +14,7 @@ import tia.util.log as log
 __all__ = ['DataManager', 'BbgDataManager', 'MemoryStorage', 'HDFStorage', 'CachedDataManager', 'Storage',
            'CacheOnlyDataManager', 'SidAccessor', 'MultiSidAccessor']
 
-_force_array = lambda x: isinstance(x, basestring) and [x] or x
+_force_array = lambda x: isinstance(x, str) and [x] or x
 
 
 class SidAccessor(object):
@@ -37,7 +38,7 @@ class SidAccessor(object):
         if self.mgr.sid_result_mode == 'frame':
             return frame
         else:
-            if isinstance(flds, basestring):
+            if isinstance(flds, str):
                 return frame.iloc[0, 0]
             else:
                 return frame.values[0].tolist()
@@ -114,7 +115,7 @@ class DataManager(object):
         raise NotImplementedError('must implement get_historical')
 
     def get_sid_accessor(self, sid, **overrides):
-        if isinstance(sid, basestring):
+        if isinstance(sid, str):
             return SidAccessor(sid, self, **overrides)
         else:
             return MultiSidAccessor(sid, self, **overrides)
@@ -151,10 +152,10 @@ class BbgDataManager(DataManager):
         end = end
         start = start
         frame = self.terminal.get_historical(sids, flds, start=start, end=end, period=period, **overrides).as_frame()
-        if isinstance(sids, basestring):
+        if isinstance(sids, str):
             return frame[sids]
         else:  # multi-indexed frame
-            if isinstance(flds, basestring):
+            if isinstance(flds, str):
                 frame.columns = frame.columns.droplevel(1)
             return frame
 
@@ -279,7 +280,7 @@ class CacheOnlyDataManager(DataManager):
         fstr = ','.join(flds)
         ostr = ''
         if overrides:
-            ostr = ', overrides=' + ','.join(['{0}={1}'.format(str(k), str(v)) for k, v in overrides.iteritems()])
+            ostr = ', overrides=' + ','.join(['{0}={1}'.format(str(k), str(v)) for k, v in overrides.items()])
         msg = 'Reference data for sids={0}, flds={1}{2}'.format(sstr, fstr, ostr)
         raise CacheMissError(msg)
 
@@ -303,7 +304,7 @@ class CachedDataManager(DataManager):
         DataManager.__init__(self)
         self.dm = dm
         self.storage = storage
-        self.ts = ts or pd.datetime.now()
+        self.ts = ts or datetime.now()
         self.logger = log.instance_logger('cachemgr', self)
 
     @staticmethod
@@ -319,7 +320,7 @@ class CachedDataManager(DataManager):
         self.dm.sid_result_mode = value
 
     def _cache_get_attribute(self, sids, flds, **overrides):
-        if isinstance(sids, basestring):
+        if isinstance(sids, str):
             key = (sids, 'attributes', overrides)
             vframe, userdata = self.storage.get(key)
             if vframe is not None:
@@ -356,7 +357,7 @@ class CachedDataManager(DataManager):
         cached = self._cache_get_attribute(sids, flds, **overrides)
         if not cached:  # build get
             df = self.dm.get_attributes(sids, flds, **overrides)
-            [self._cache_update_attribute(sid, df.ix[sid:sid], **overrides) for sid in sids]
+            [self._cache_update_attribute(sid, df.loc[sid:sid], **overrides) for sid in sids]
             return df
         else:
             # Retrieve all missing and merge with existing cache
@@ -369,7 +370,7 @@ class CachedDataManager(DataManager):
             # now just retrieve from cache
             data = self._cache_get_attribute(sids, flds, **overrides)
             # reindex and grab columns to sort
-            frame = pd.concat(data.values())
+            frame = pd.concat(list(data.values()))
             return frame
 
     def _date_only(self, ts_or_period):
@@ -381,8 +382,8 @@ class CachedDataManager(DataManager):
 
     def get_historical(self, sids, flds, start, end, period=None, **overrides):
         # TODO - Revisit date handling for caching
-        is_str = isinstance(sids, basestring)
-        is_fld_str = isinstance(flds, basestring)
+        is_str = isinstance(sids, str)
+        is_fld_str = isinstance(flds, str)
         flds = _force_array(flds)
         sids = _force_array(sids)
         end = (end and self._date_only(end)) or self._date_only(self.ts)
@@ -392,7 +393,7 @@ class CachedDataManager(DataManager):
         for sid in sids:
             key = (sid, 'historical', dict(period=period))
             if overrides:
-                    for k, v in overrides.iteritems():
+                    for k, v in overrides.items():
                         key[2][k] = v
 
             cached_frame, userdata = self.storage.get(key)
@@ -413,7 +414,7 @@ class CachedDataManager(DataManager):
                                                                                            cache_start))
                     previous = self.dm.get_historical(sid, cache_columns, start, cache_start)
                     # Easy way to ensure we don't dup data
-                    previous = previous.ix[previous.index < cache_start]
+                    previous = previous.loc[previous.index < cache_start]
                     if len(previous.index) > 0:
                         cached_frame = pd.concat([previous, cached_frame])
                         dirty = 1
@@ -422,7 +423,7 @@ class CachedDataManager(DataManager):
                     self.logger.info('%s request for %s is more recent than data in cache %s' % (sid, ccols, cache_end))
                     post = self.dm.get_historical(sid, cache_columns, cache_end, end)
                     # Easy way to ensure we don't dup data
-                    post = post.ix[post.index > cache_end]
+                    post = post.loc[post.index > cache_end]
                     if len(post.index) > 0:
                         cached_frame = pd.concat([cached_frame, post])
                         dirty = 1
@@ -441,12 +442,12 @@ class CachedDataManager(DataManager):
                     dirty = 1
 
                 dirty and self.storage.set(key, cached_frame, start=min(cache_start, start), end=max(cache_end, end))
-                frames[sid] = cached_frame.ix[start:end, flds]
+                frames[sid] = cached_frame.loc[start:end, flds]
 
         if is_str:
             return frames[sids[0]]
         else:
-            result = pd.concat(frames.values(), keys=frames.keys(), axis=1)
+            result = pd.concat(list(frames.values()), keys=list(frames.keys()), axis=1)
             if is_fld_str:
                 result.columns = result.columns.droplevel(1)
             return result
