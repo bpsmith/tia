@@ -253,6 +253,9 @@ class HistoricalDataResponse(object):
 
     def on_security_complete(self, sid, frame):
         self.response_map[sid] = frame
+    
+    def as_panel(self):
+        raise NotImplementedError('Pandas.Panel was removed from the library: https://pandas.pydata.org/pandas-docs/version/0.23/generated/pandas.Panel.html.')
 
     def as_map(self):
         return self.response_map
